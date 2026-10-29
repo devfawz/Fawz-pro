@@ -168,7 +168,7 @@
     if (saved) {
       try {
         const u = JSON.parse(saved);
-        if (u.token && (!u._exp || Date.now() < u._exp)) {
+        if (u && u.id && (!u._exp || Date.now() < u._exp)) {
           sessionStorage.setItem('fawz_user', saved);
           window.location.href = 'dashboard.html';
         }
@@ -232,35 +232,33 @@
     setLoading(true);
 
     try {
-      const BASE = (window.__FAWZ_CONFIG__ || {}).apiUrl || '/api';
-      const res  = await fetch(BASE + '/auth.php?action=login', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ username, password }),
-      });
-      const raw = await res.text();
-      let json;
-      try {
-        json = JSON.parse(raw);
-      } catch (_) {
-        console.error('Login: respons server bukan JSON (HTTP ' + res.status + '):', raw.slice(0, 500));
-        showMsg('error', `⚠️ Server error (HTTP ${res.status}). Hubungi admin.`);
+      // ── Login via Supabase — query tabel accounts ──
+      const sb = window._supabase;
+      if (!sb) {
+        showMsg('error', '⚠️ Gagal terhubung ke database. Hubungi admin.');
         setLoading(false);
         return;
       }
 
-      if (!res.ok && res.status >= 500) {
-        showMsg('error', `⚠️ ${json.error || 'Terjadi kesalahan pada server.'}`);
-        setLoading(false);
-        return;
-      }
+      const { data, error } = await sb
+        .from('accounts')
+        .select('id, username, name, role')
+        .eq('username', username)
+        .eq('password', password)
+        .maybeSingle();
 
-      if (json.ok && json.data?.token) {
+      // PGRST116 = no rows (akun tidak ada / password salah)
+      if (error && error.code !== 'PGRST116') throw error;
+
+      if (data) {
         _loginAttempts = 0;
 
+        // Simpan hanya data non-sensitif — tidak menyimpan password
         const sessionUser = {
-          ...json.data.user,
-          token: json.data.token,
+          id:       data.id,
+          username: data.username,
+          name:     data.name,
+          role:     data.role,
         };
 
         const remember = document.getElementById('remember').checked;
@@ -268,7 +266,11 @@
         const stored   = JSON.stringify({ ...sessionUser, _exp: expiry });
 
         sessionStorage.setItem('fawz_user', stored);
-        localStorage.setItem('fawz_user_remember', stored);
+        if (remember) {
+          localStorage.setItem('fawz_user_remember', stored);
+        } else {
+          localStorage.removeItem('fawz_user_remember');
+        }
 
         showMsg('success', '✅ Login berhasil! Mengalihkan...');
         setTimeout(() => { window.location.href = 'dashboard.html'; }, 900);
@@ -279,14 +281,14 @@
           _loginAttempts = 0;
           showMsg('error', '🔒 Terlalu banyak percobaan. Akun dikunci 30 detik.');
         } else {
-          showMsg('error', `❌ ${json.error || 'Username atau password salah.'} (${_loginAttempts}/5)`);
+          showMsg('error', `❌ Username atau password salah. (${_loginAttempts}/5)`);
         }
         document.getElementById('password').value = '';
         setLoading(false);
       }
     } catch (err) {
       console.error('Login error:', err);
-      showMsg('error', '⚠️ Gagal terhubung ke server. Periksa koneksi internet.');
+      showMsg('error', '⚠️ Gagal terhubung ke database. Hubungi admin.');
       setLoading(false);
     }
   }
