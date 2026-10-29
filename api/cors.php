@@ -24,6 +24,36 @@ header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 header('Content-Type: application/json; charset=utf-8');
 
+// Jangan cetak error PHP sebagai HTML — client selalu mengharapkan JSON.
+// Detail error tetap dicatat di error_log server.
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+
+set_exception_handler(function (Throwable $e) {
+    error_log('[api] ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    $msg = $e instanceof PDOException
+        ? 'Gagal terhubung ke database. Hubungi admin.'
+        : 'Terjadi kesalahan pada server.';
+    echo json_encode(['ok' => false, 'error' => $msg], JSON_UNESCAPED_UNICODE);
+    exit;
+});
+
+register_shutdown_function(function () {
+    $err = error_get_last();
+    if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        error_log('[api] Fatal: ' . $err['message'] . ' @ ' . $err['file'] . ':' . $err['line']);
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        echo json_encode(['ok' => false, 'error' => 'Terjadi kesalahan pada server.'], JSON_UNESCAPED_UNICODE);
+    }
+});
+
 // Preflight
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
