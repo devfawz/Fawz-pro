@@ -18,41 +18,76 @@
     }
 
     async function loadObligasiCount() {
+      if (!window._supabase) { console.error('Supabase belum siap'); return; }
       try {
-        const res = await window._api.get('dashboard.php', { scope: 'summary' });
+        const { count, error } = await window._supabase
+          .from('obligasi_products')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_active', true);
+        if (error) throw error;
         const el = document.getElementById('statObligasi');
-        if (el) el.textContent = ((res.data && res.data.obligasi_products) || 0).toLocaleString('id-ID');
+        if (el) el.textContent = (count || 0).toLocaleString('id-ID');
       } catch(e) { console.error('Gagal load obligasi count:', e); }
     }
 
-    async function loadSalesStats() {
+    // Helper: get date range strings for current month
+    function getMonthRange() {
       const now = new Date();
-      const bulan = now.getMonth() + 1;
-      const tahun = now.getFullYear();
-      const monthLabel = now.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+      return {
+        first: `${y}-${m}-01`,
+        last:  `${y}-${m}-${String(lastDay).padStart(2, '0')}`,
+        monthLabel: now.toLocaleString('id-ID', { month: 'long', year: 'numeric' })
+      };
+    }
+
+    async function loadSalesStats() {
+      if (!window._supabase) { console.error('Supabase belum siap'); return; }
+      const { first, last, monthLabel } = getMonthRange();
 
       try {
-        const res = await window._api.get('dashboard.php', { scope: 'sales_stats', bulan, tahun });
-        const stats = res.data || {};
+        // Obligasi (bb_orders verified)
+        const { data: oblData, error: oblErr } = await window._supabase
+          .from('bb_orders')
+          .select('nominal')
+          .eq('status', 'verified')
+          .gte('created_at', first)
+          .lte('created_at', last + 'T23:59:59');
+        if (oblErr) throw oblErr;
+        const oblNominal = (oblData || []).reduce((s, r) => s + (parseFloat(r.nominal) || 0), 0);
+        const oblCount   = (oblData || []).length;
 
-        // Obligasi Terjual
-        const oblNominal = parseFloat((stats.obligasi || {}).total_nominal) || 0;
-        const oblCount   = parseInt((stats.obligasi   || {}).trx_count)     || 0;
         const elOblVal = document.getElementById('statObligasiTerjual');
         const elOblSub = document.getElementById('statObligasiTerjualSub');
         if (elOblVal) elOblVal.textContent = 'Rp ' + oblNominal.toLocaleString('id-ID');
         if (elOblSub) elOblSub.textContent = oblCount + ' Transaksi bulan ini';
 
-        // Reksadana Terjual
-        const reksNominal = parseFloat((stats.reksadana || {}).total_nominal) || 0;
-        const reksCount   = parseInt((stats.reksadana   || {}).trx_count)     || 0;
+        // Reksadana
+        const { data: reksData, error: reksErr } = await window._supabase
+          .from('reksadana_transactions')
+          .select('nominal')
+          .gte('created_at', first)
+          .lte('created_at', last + 'T23:59:59');
+        if (reksErr) throw reksErr;
+        const reksNominal = (reksData || []).reduce((s, r) => s + (parseFloat(r.nominal) || 0), 0);
+        const reksCount   = (reksData || []).length;
+
         const elReksVal = document.getElementById('statReksadanaTerjual');
         const elReksSub = document.getElementById('statReksadanaTerjualSub');
         if (elReksVal) elReksVal.textContent = 'Rp ' + reksNominal.toLocaleString('id-ID');
         if (elReksSub) elReksSub.textContent = reksCount + ' Transaksi bulan ini';
 
-        // Komisi Berjalan (dari saham)
-        const komisi = parseFloat((stats.saham || {}).total_fee) || 0;
+        // Komisi Berjalan (dari saham_transaksi fee)
+        const { data: sahamData, error: sahamErr } = await window._supabase
+          .from('saham_transaksi')
+          .select('fee')
+          .gte('tanggal', first)
+          .lte('tanggal', last);
+        if (sahamErr) throw sahamErr;
+        const komisi = (sahamData || []).reduce((s, r) => s + (parseFloat(r.fee) || 0), 0);
+
         const elKomVal = document.getElementById('statKomisi');
         const elKomSub = document.getElementById('statKomisiSub');
         if (elKomVal) elKomVal.textContent = 'Rp ' + komisi.toLocaleString('id-ID');
@@ -79,28 +114,29 @@
     });
 
     async function loadCustomerCount(role) {
-      // Semua role: ambil active_customers dari dashboard summary
+      if (!window._supabase) { console.error('Supabase belum siap'); return; }
       try {
         const year = new Date().getFullYear();
-        const res = await window._api.get('dashboard.php', { scope: 'summary' });
-        const count = (res.data && res.data.active_customers) || 0;
+        const { count, error } = await window._supabase
+          .from('customers')
+          .select('*', { count: 'exact', head: true })
+          .eq('client_status', 'Aktif');
+        if (error) throw error;
         const el = document.getElementById('sumCustomerAktif');
-        if (el) el.textContent = count.toLocaleString('id-ID');
+        if (el) el.textContent = (count || 0).toLocaleString('id-ID');
         const badge = document.getElementById('sumCustomerBadge');
         if (badge) badge.textContent = 'YTD ' + year;
       } catch(e) { console.error('Gagal load customer count:', e); }
     }
 
     async function loadSummaryBar(role) {
+      if (!window._supabase) { console.error('Supabase belum siap'); return; }
       try {
         const raw = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
         const u = raw ? JSON.parse(raw) : {};
         const salesName = u.name || '';
 
-        const now = new Date();
-        const bulan = now.getMonth() + 1;
-        const tahun = now.getFullYear();
-        const monthLabel = now.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+        const { first, last, monthLabel } = getMonthRange();
 
         const fmtRp = v => 'Rp ' + Math.round(v).toLocaleString('id-ID');
 
@@ -111,12 +147,17 @@
         const elKomVal   = document.getElementById('sumKomisiValue');
         const elKomBadge = document.getElementById('sumKomisiBadge');
 
-        // ── Treasury (Bonds): data obligasi dari dashboard sales_stats ──
+        // ── Treasury (Bonds): data obligasi dari bb_orders ──
         if (role === 'treasury') {
-          const res = await window._api.get('dashboard.php', { scope: 'sales_stats', bulan, tahun });
-          const obl = (res.data || {}).obligasi || {};
-          const totalNom  = parseFloat(obl.total_nominal) || 0;
-          const jumlahTrx = parseInt(obl.trx_count) || 0;
+          const { data: oblData, error: oblErr } = await window._supabase
+            .from('bb_orders')
+            .select('nominal')
+            .eq('status', 'verified')
+            .gte('created_at', first)
+            .lte('created_at', last + 'T23:59:59');
+          if (oblErr) throw oblErr;
+          const totalNom  = (oblData || []).reduce((s, r) => s + (parseFloat(r.nominal) || 0), 0);
+          const jumlahTrx = (oblData || []).length;
 
           if (elTrxVal)   elTrxVal.textContent   = fmtRp(totalNom);
           if (elTrxBadge) elTrxBadge.textContent = jumlahTrx.toLocaleString('id-ID') + ' Transaksi';
@@ -127,23 +168,29 @@
           return;
         }
 
-        // ── Semua role lain: dari saham_transaksi via dashboard sales_stats ──
+        // ── Semua role lain: dari saham_transaksi ──
         const DEFAULT_TARGET_FEE = 10_000_000;
         const RATE_ABOVE_TARGET  = 0.12;
         const RATE_BELOW_TARGET  = 0.05;
 
-        const params = { scope: 'sales_stats', bulan, tahun };
-        if (role === 'sales' && salesName) params.sales_name = salesName;
+        let sahamQuery = window._supabase
+          .from('saham_transaksi')
+          .select('nilai, fee')
+          .gte('tanggal', first)
+          .lte('tanggal', last);
+        if (role === 'sales' && salesName) {
+          sahamQuery = sahamQuery.eq('sales_name', salesName);
+        }
 
-        const res = await window._api.get('dashboard.php', params);
-        const saham = (res.data || {}).saham || {};
+        const { data: sahamData, error: sahamErr } = await sahamQuery;
+        if (sahamErr) throw sahamErr;
 
-        const totalVolume = parseFloat(saham.total_nilai) || 0;
-        const totalFee    = parseFloat(saham.total_fee)   || 0;
-        const jumlahTrx   = parseInt(saham.trx_count)     || 0;
+        const totalVolume = (sahamData || []).reduce((s, r) => s + (parseFloat(r.nilai) || 0), 0);
+        const totalFee    = (sahamData || []).reduce((s, r) => s + (parseFloat(r.fee)   || 0), 0);
+        const jumlahTrx   = (sahamData || []).length;
 
-        // Hitung komisi: karena API sudah aggregate per sales, pakai fee langsung
-        const rate       = totalFee >= DEFAULT_TARGET_FEE ? RATE_ABOVE_TARGET : RATE_BELOW_TARGET;
+        // Hitung komisi dari fee
+        const rate        = totalFee >= DEFAULT_TARGET_FEE ? RATE_ABOVE_TARGET : RATE_BELOW_TARGET;
         const totalKomisi = totalFee * rate;
 
         if (elTrxVal)   elTrxVal.textContent   = fmtRp(totalVolume);
@@ -159,15 +206,21 @@
     }
 
     async function loadBirthdayWidget(role) {
+      if (!window._supabase) { console.error('Supabase belum siap'); return; }
       try {
         const raw = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
         const u = raw ? JSON.parse(raw) : {};
         const salesName = (u.name || '').toLowerCase().trim();
 
-        const res = await window._api.get('dashboard.php', { scope: 'birthday' });
-        let results = res.data || [];
+        // Get all customers with birth_date, filter client-side for today
+        const { data, error } = await window._supabase
+          .from('customers')
+          .select('id, client_name, birth_date, sales_person_name')
+          .not('birth_date', 'is', null);
+        if (error) throw error;
+        let results = data || [];
 
-        // Filter: hanya tampilkan ulang tahun hari ini (backend bisa kembalikan ±7 hari)
+        // Filter: hanya tampilkan ulang tahun hari ini
         const today = new Date();
         const todayM = today.getMonth() + 1;
         const todayD = today.getDate();
