@@ -4,7 +4,7 @@
   <script src="config.js"></script>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Fawz Pro | Obligasi Pasar Sekunder</title>
+  <title>Sales Petik Profit | Obligasi Pasar Sekunder</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -29,10 +29,10 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --navy: #0d0d2b;
-      --purple: #1e1252;
+      --navy: #1b4332;
+      --purple: #14532d;
       --gold: #f5a623;
-      --gold-light: #ffc857;
+      --gold-light: #ffd43b;
       --bg: #f4f5fb;
       --white: #ffffff;
       --nav-h: 68px;
@@ -867,7 +867,7 @@
         <td style="color:#27ae60;">${fmtHarga(r.harga_jual)}</td>
         <td style="color:#e74c3c;">${fmtHarga(r.harga_beli)}</td>
         <td>${r.yield != null ? fmtDecimal(r.yield, 4) + '%' : '—'}</td>
-        <td style="color:#7c3aed;" class="col-harga-internal">${r.harga_modal != null ? fmtHarga(r.harga_modal) : '—'}</td>
+        <td style="color:#15803d;" class="col-harga-internal">${r.harga_modal != null ? fmtHarga(r.harga_modal) : '—'}</td>
         <td style="color:#0369a1;" class="col-harga-internal">${r.modal_to_sales != null ? fmtHarga(r.modal_to_sales) : '—'}</td>
         <td style="color:#b45309;" class="col-harga-internal">${r.harga_to_customer != null ? fmtHarga(r.harga_to_customer) : '—'}</td>
         <td style="font-size:0.8rem;color:#888;">${fmtDate(r.tanggal_update)}</td>

@@ -4,15 +4,15 @@
   <script src="config.js"></script>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Fawz Pro | Brand Logo</title>
+  <title>Sales Petik Profit | Brand Logo</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --primary: #5645d4;
-      --primary-hover: #4534b3;
-      --brand-navy: #0a1530;
+      --primary: #1b4332;
+      --primary-hover: #14532d;
+      --brand-navy: #14532d;
       --ink: #1a1a1a;
       --ink-deep: #000;
       --charcoal: #37352f;
@@ -128,7 +128,7 @@
     .swatch.selected { border-color: var(--primary); transform: scale(1.15); }
     .swatch-white { background: #ffffff; border: 2px solid var(--hairline-strong) !important; }
     .swatch-black { background: #1a1a1a; }
-    .swatch-navy  { background: #0a1530; }
+    .swatch-navy  { background: #14532d; }
     .swatch-gray  { background: #f6f5f4; border: 2px solid var(--hairline-strong) !important; }
     .swatch-gold  { background: #f5a623; }
     .swatch-custom { background: linear-gradient(135deg, #f06, #90f, #06f); position: relative; }
@@ -535,7 +535,7 @@
           <div class="bg-swatches" id="bgSwatches">
             <div class="swatch swatch-white selected" data-color="#ffffff" data-label="Putih" onclick="selectBg(this)" title="Putih"></div>
             <div class="swatch swatch-black" data-color="#1a1a1a" data-label="Hitam" onclick="selectBg(this)" title="Hitam"></div>
-            <div class="swatch swatch-navy"  data-color="#0a1530" data-label="Navy"  onclick="selectBg(this)" title="Navy"></div>
+            <div class="swatch swatch-navy"  data-color="#14532d" data-label="Navy"  onclick="selectBg(this)" title="Navy"></div>
             <div class="swatch swatch-gray"  data-color="#f6f5f4" data-label="Abu"   onclick="selectBg(this)" title="Abu-abu"></div>
             <div class="swatch swatch-gold"  data-color="#f5a623" data-label="Emas"  onclick="selectBg(this)" title="Emas"></div>
             <div class="swatch swatch-custom" title="Warna Custom">
@@ -677,10 +677,10 @@
       <div class="form-group" id="solidGroup">
         <label class="form-label">Kode Warna (HEX)</label>
         <div style="display:flex;gap:10px;align-items:center;">
-          <input type="color" id="paletteColorPicker" value="#5645d4"
+          <input type="color" id="paletteColorPicker" value="#1b4332"
             style="width:44px;height:44px;border:none;border-radius:8px;cursor:pointer;padding:2px;"
             oninput="document.getElementById('paletteHex').value=this.value; syncPreview()"/>
-          <input type="text" id="paletteHex" class="form-input" placeholder="#5645d4" value="#5645d4"
+          <input type="text" id="paletteHex" class="form-input" placeholder="#1b4332" value="#1b4332"
             oninput="syncColorPicker(); syncPreview()"
             style="font-family:monospace;flex:1;"/>
         </div>
@@ -690,10 +690,10 @@
       <div class="form-group" id="gradientGroup" style="display:none;">
         <label class="form-label">Warna Awal</label>
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
-          <input type="color" id="gradColor1Picker" value="#5645d4"
+          <input type="color" id="gradColor1Picker" value="#1b4332"
             style="width:44px;height:44px;border:none;border-radius:8px;cursor:pointer;padding:2px;"
             oninput="document.getElementById('gradColor1').value=this.value; syncPreview()"/>
-          <input type="text" id="gradColor1" class="form-input" placeholder="#5645d4" value="#5645d4"
+          <input type="text" id="gradColor1" class="form-input" placeholder="#1b4332" value="#1b4332"
             oninput="document.getElementById('gradColor1Picker').value=this.value; syncPreview()"
             style="font-family:monospace;flex:1;"/>
         </div>
@@ -718,7 +718,7 @@
       <!-- Preview -->
       <div class="form-group">
         <label class="form-label">Preview</label>
-        <div id="palettePreview" style="height:52px;border-radius:10px;border:1px solid var(--hairline);background:#5645d4;transition:background 0.2s;"></div>
+        <div id="palettePreview" style="height:52px;border-radius:10px;border:1px solid var(--hairline);background:#1b4332;transition:background 0.2s;"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -738,7 +738,7 @@
     <div class="modal-body">
       <div class="form-group">
         <label class="form-label">Nama Logo / Penggunaan</label>
-        <input type="text" id="fontLogoName" class="form-input" placeholder="cth. Fawz Pro Wordmark"/>
+        <input type="text" id="fontLogoName" class="form-input" placeholder="cth. Sales Petik Profit Wordmark"/>
       </div>
       <div class="form-group">
         <label class="form-label">Nama Font</label>
@@ -764,7 +764,7 @@
           letter-spacing: -0.3px;
           min-height: 60px;
           transition: font-family 0.2s;
-        ">Fawz Pro</div>
+        ">Sales Petik Profit</div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1067,12 +1067,12 @@ function syncPreview() {
   const preview = document.getElementById('palettePreview');
   if (!preview) return;
   if (_colorType === 'gradient') {
-    const c1  = document.getElementById('gradColor1').value || '#5645d4';
+    const c1  = document.getElementById('gradColor1').value || '#1b4332';
     const c2  = document.getElementById('gradColor2').value || '#a78bfa';
     const dir = document.getElementById('gradDirection').value || '135deg';
     preview.style.background = `linear-gradient(${dir}, ${c1}, ${c2})`;
   } else {
-    const hex = document.getElementById('paletteHex').value || '#5645d4';
+    const hex = document.getElementById('paletteHex').value || '#1b4332';
     preview.style.background = hex;
   }
 }
@@ -1083,12 +1083,12 @@ function openPaletteModal(id, name, hex, type, hex2, dir) {
   document.getElementById('paletteName').value = name || '';
 
   // Reset solid
-  document.getElementById('paletteHex').value = hex || '#5645d4';
-  document.getElementById('paletteColorPicker').value = hex || '#5645d4';
+  document.getElementById('paletteHex').value = hex || '#1b4332';
+  document.getElementById('paletteColorPicker').value = hex || '#1b4332';
 
   // Reset gradient
-  document.getElementById('gradColor1').value = hex || '#5645d4';
-  document.getElementById('gradColor1Picker').value = hex || '#5645d4';
+  document.getElementById('gradColor1').value = hex || '#1b4332';
+  document.getElementById('gradColor1Picker').value = hex || '#1b4332';
   document.getElementById('gradColor2').value = hex2 || '#a78bfa';
   document.getElementById('gradColor2Picker').value = hex2 || '#a78bfa';
   document.getElementById('gradDirection').value = dir || '135deg';

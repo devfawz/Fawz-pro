@@ -7,3 +7,10 @@ analytics-working.html
 .kiro/
 .env
 .env.local
+api/.env.php
+test-results/
+
+# Backup & OS files
+.color-backup/
+.DS_Store
+**/.DS_Store

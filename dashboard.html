@@ -4,27 +4,10 @@
   <script src="config.js"></script>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Fawz Pro | Dashboard</title>
+  <title>Sales Petik Profit | Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 
-  <!-- Supabase SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script>
-    const SUPABASE_URL = (window.__FAWZ_CONFIG__ || {}).supabaseUrl || '';
-    const SUPABASE_KEY = (window.__FAWZ_CONFIG__ || {}).supabaseKey || '';
-    const _sbDash = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    window._supabase = _sbDash; // expose untuk navbar.js
-
-    async function loadObligasiCount() {
-      try {
-        const { count, error } = await _sbDash
-          .from('obligasi_products')
-          .select('*', { count: 'exact', head: true });
-        const el = document.getElementById('statObligasi');
-        if (el && !error) el.textContent = (count || 0).toLocaleString('id-ID');
-      } catch(e) { console.error('Gagal load obligasi count:', e); }
-    }
-
     function getUserRole() {
       try {
         const raw = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
@@ -34,106 +17,57 @@
       } catch(e) { return ''; }
     }
 
-    function getUserId() {
+    async function loadObligasiCount() {
       try {
-        const raw = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
-        if (!raw) return null;
-        const u = JSON.parse(raw);
-        return u.id || u.userId || u.user_id || null;
-      } catch(e) { return null; }
+        const res = await window._api.get('dashboard.php', { scope: 'summary' });
+        const el = document.getElementById('statObligasi');
+        if (el) el.textContent = ((res.data && res.data.obligasi_products) || 0).toLocaleString('id-ID');
+      } catch(e) { console.error('Gagal load obligasi count:', e); }
     }
 
     async function loadSalesStats() {
-      const userId = getUserId();
       const now = new Date();
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const lastDay  = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+      const bulan = now.getMonth() + 1;
+      const tahun = now.getFullYear();
+      const monthLabel = now.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
 
       try {
-        // Obligasi Terjual - jumlah order obligasi bulan ini oleh sales ini
-        let qObl = _sbDash
-          .from('obligasi_orders')
-          .select('nominal', { count: 'exact' })
-          .gte('created_at', firstDay)
-          .lte('created_at', lastDay);
-        if (userId) qObl = qObl.eq('sales_id', userId);
-        const { data: oblData, count: oblCount, error: oblErr } = await qObl;
-        if (!oblErr) {
-          const totalObl = (oblData || []).reduce((s, r) => s + (parseFloat(r.nominal) || 0), 0);
-          const elVal = document.getElementById('statObligasiTerjual');
-          const elSub = document.getElementById('statObligasiTerjualSub');
-          if (elVal) elVal.textContent = 'Rp ' + totalObl.toLocaleString('id-ID');
-          if (elSub) elSub.textContent = (oblCount || 0) + ' Transaksi bulan ini';
-        }
-      } catch(e) { console.error('Gagal load obligasi terjual:', e); }
+        const res = await window._api.get('dashboard.php', { scope: 'sales_stats', bulan, tahun });
+        const stats = res.data || {};
 
-      try {
+        // Obligasi Terjual
+        const oblNominal = parseFloat((stats.obligasi || {}).total_nominal) || 0;
+        const oblCount   = parseInt((stats.obligasi   || {}).trx_count)     || 0;
+        const elOblVal = document.getElementById('statObligasiTerjual');
+        const elOblSub = document.getElementById('statObligasiTerjualSub');
+        if (elOblVal) elOblVal.textContent = 'Rp ' + oblNominal.toLocaleString('id-ID');
+        if (elOblSub) elOblSub.textContent = oblCount + ' Transaksi bulan ini';
+
         // Reksadana Terjual
-        let qReks = _sbDash
-          .from('reksadana_orders')
-          .select('nominal', { count: 'exact' })
-          .gte('created_at', firstDay)
-          .lte('created_at', lastDay);
-        if (userId) qReks = qReks.eq('sales_id', userId);
-        const { data: reksData, count: reksCount, error: reksErr } = await qReks;
-        if (!reksErr) {
-          const totalReks = (reksData || []).reduce((s, r) => s + (parseFloat(r.nominal) || 0), 0);
-          const elVal = document.getElementById('statReksadanaTerjual');
-          const elSub = document.getElementById('statReksadanaTerjualSub');
-          if (elVal) elVal.textContent = 'Rp ' + totalReks.toLocaleString('id-ID');
-          if (elSub) elSub.textContent = (reksCount || 0) + ' Transaksi bulan ini';
-        }
-      } catch(e) { console.error('Gagal load reksadana terjual:', e); }
+        const reksNominal = parseFloat((stats.reksadana || {}).total_nominal) || 0;
+        const reksCount   = parseInt((stats.reksadana   || {}).trx_count)     || 0;
+        const elReksVal = document.getElementById('statReksadanaTerjual');
+        const elReksSub = document.getElementById('statReksadanaTerjualSub');
+        if (elReksVal) elReksVal.textContent = 'Rp ' + reksNominal.toLocaleString('id-ID');
+        if (elReksSub) elReksSub.textContent = reksCount + ' Transaksi bulan ini';
 
-      try {
-        // Waran Terstruktur Terjual
-        let qWar = _sbDash
-          .from('waran_orders')
-          .select('nominal', { count: 'exact' })
-          .gte('created_at', firstDay)
-          .lte('created_at', lastDay);
-        if (userId) qWar = qWar.eq('sales_id', userId);
-        const { data: warData, count: warCount, error: warErr } = await qWar;
-        if (!warErr) {
-          const totalWar = (warData || []).reduce((s, r) => s + (parseFloat(r.nominal) || 0), 0);
-          const elVal = document.getElementById('statWaranTerjual');
-          const elSub = document.getElementById('statWaranTerjualSub');
-          if (elVal) elVal.textContent = 'Rp ' + totalWar.toLocaleString('id-ID');
-          if (elSub) elSub.textContent = (warCount || 0) + ' Transaksi bulan ini';
-        }
-      } catch(e) { console.error('Gagal load waran terjual:', e); }
-
-      try {
-        // Komisi Berjalan Bulan Ini
-        let qKom = _sbDash
-          .from('commissions')
-          .select('amount')
-          .gte('created_at', firstDay)
-          .lte('created_at', lastDay);
-        if (userId) qKom = qKom.eq('sales_id', userId);
-        const { data: komData, error: komErr } = await qKom;
-        if (!komErr) {
-          const totalKom = (komData || []).reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
-          const elVal = document.getElementById('statKomisi');
-          const elSub = document.getElementById('statKomisiSub');
-          if (elVal) elVal.textContent = 'Rp ' + totalKom.toLocaleString('id-ID');
-          if (elSub) elSub.textContent = 'Bulan ' + now.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
-        }
-      } catch(e) { console.error('Gagal load komisi:', e); }
+        // Komisi Berjalan (dari saham)
+        const komisi = parseFloat((stats.saham || {}).total_fee) || 0;
+        const elKomVal = document.getElementById('statKomisi');
+        const elKomSub = document.getElementById('statKomisiSub');
+        if (elKomVal) elKomVal.textContent = 'Rp ' + komisi.toLocaleString('id-ID');
+        if (elKomSub) elKomSub.textContent = 'Bulan ' + monthLabel;
+      } catch(e) { console.error('Gagal load sales stats:', e); }
     }
 
     window.addEventListener('DOMContentLoaded', () => {
       const role = getUserRole();
-      // Untuk semua role: hitung Customer Aktif dari YTD saham_transaksi
       const el = document.getElementById('sumCustomerAktif');
       if (el) el.textContent = '0';
-      
-      if (role === 'sales') {
-        loadSalesCustomerCount();
-      } else if (role === 'head_sales') {
-        loadHeadSalesCustomerCount();
-      } else {
-        loadAllCustomerCount();
+
+      loadCustomerCount(role);
+
+      if (role !== 'sales') {
         loadObligasiCount();
       }
 
@@ -144,6 +78,19 @@
       loadBirthdayWidget(role);
     });
 
+    async function loadCustomerCount(role) {
+      // Semua role: ambil active_customers dari dashboard summary
+      try {
+        const year = new Date().getFullYear();
+        const res = await window._api.get('dashboard.php', { scope: 'summary' });
+        const count = (res.data && res.data.active_customers) || 0;
+        const el = document.getElementById('sumCustomerAktif');
+        if (el) el.textContent = count.toLocaleString('id-ID');
+        const badge = document.getElementById('sumCustomerBadge');
+        if (badge) badge.textContent = 'YTD ' + year;
+      } catch(e) { console.error('Gagal load customer count:', e); }
+    }
+
     async function loadSummaryBar(role) {
       try {
         const raw = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
@@ -151,34 +98,25 @@
         const salesName = u.name || '';
 
         const now = new Date();
-        const pad2 = n => String(n).padStart(2, '0');
-        const yr  = now.getFullYear();
-        const mo  = now.getMonth() + 1; // 1-based
-        const daysInMonth = new Date(yr, mo, 0).getDate();
-        const firstDay  = yr + '-' + pad2(mo) + '-01';
-        const lastDay   = yr + '-' + pad2(mo) + '-' + pad2(daysInMonth);
+        const bulan = now.getMonth() + 1;
+        const tahun = now.getFullYear();
         const monthLabel = now.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
 
         const fmtRp = v => 'Rp ' + Math.round(v).toLocaleString('id-ID');
 
-        // ── Treasury (Bonds): hanya data obligasi dari bb_orders ──
+        const elTrxVal   = document.getElementById('sumTransaksiValue');
+        const elTrxBadge = document.getElementById('sumTransaksiBadge');
+        const elRevVal   = document.getElementById('sumRevenueValue');
+        const elRevBadge = document.getElementById('sumRevenueBadge');
+        const elKomVal   = document.getElementById('sumKomisiValue');
+        const elKomBadge = document.getElementById('sumKomisiBadge');
+
+        // ── Treasury (Bonds): data obligasi dari dashboard sales_stats ──
         if (role === 'treasury') {
-          const { data: oblData } = await _sbDash
-            .from('bb_orders')
-            .select('nominal')
-            .gte('created_at', firstDay + 'T00:00:00')
-            .lte('created_at', lastDay + 'T23:59:59');
-
-          const rows       = oblData || [];
-          const totalNom   = rows.reduce((s, r) => s + (parseFloat(r.nominal) || 0), 0);
-          const jumlahTrx  = rows.length;
-
-          const elTrxVal   = document.getElementById('sumTransaksiValue');
-          const elTrxBadge = document.getElementById('sumTransaksiBadge');
-          const elRevVal   = document.getElementById('sumRevenueValue');
-          const elRevBadge = document.getElementById('sumRevenueBadge');
-          const elKomVal   = document.getElementById('sumKomisiValue');
-          const elKomBadge = document.getElementById('sumKomisiBadge');
+          const res = await window._api.get('dashboard.php', { scope: 'sales_stats', bulan, tahun });
+          const obl = (res.data || {}).obligasi || {};
+          const totalNom  = parseFloat(obl.total_nominal) || 0;
+          const jumlahTrx = parseInt(obl.trx_count) || 0;
 
           if (elTrxVal)   elTrxVal.textContent   = fmtRp(totalNom);
           if (elTrxBadge) elTrxBadge.textContent = jumlahTrx.toLocaleString('id-ID') + ' Transaksi';
@@ -189,45 +127,24 @@
           return;
         }
 
-        // ── Semua role lain: dari saham_transaksi ──
+        // ── Semua role lain: dari saham_transaksi via dashboard sales_stats ──
         const DEFAULT_TARGET_FEE = 10_000_000;
         const RATE_ABOVE_TARGET  = 0.12;
         const RATE_BELOW_TARGET  = 0.05;
 
-        let q = _sbDash
-          .from('saham_transaksi')
-          .select('volume, fee, sales_name')
-          .gte('tanggal', firstDay)
-          .lte('tanggal', lastDay);
+        const params = { scope: 'sales_stats', bulan, tahun };
+        if (role === 'sales' && salesName) params.sales_name = salesName;
 
-        if (role === 'sales' && salesName) {
-          q = q.ilike('sales_name', salesName);
-        }
+        const res = await window._api.get('dashboard.php', params);
+        const saham = (res.data || {}).saham || {};
 
-        const { data, error } = await q;
-        if (error) throw error;
+        const totalVolume = parseFloat(saham.total_nilai) || 0;
+        const totalFee    = parseFloat(saham.total_fee)   || 0;
+        const jumlahTrx   = parseInt(saham.trx_count)     || 0;
 
-        const rows = data || [];
-        const totalVolume = rows.reduce((s, r) => s + (parseFloat(r.volume) || 0), 0);
-        const totalFee    = rows.reduce((s, r) => s + (parseFloat(r.fee)    || 0), 0);
-        const jumlahTrx   = rows.length;
-
-        const salesFeeMap = {};
-        rows.forEach(r => {
-          const key = (r.sales_name || '—').toLowerCase().trim();
-          salesFeeMap[key] = (salesFeeMap[key] || 0) + (parseFloat(r.fee) || 0);
-        });
-        const totalKomisi = Object.values(salesFeeMap).reduce((sum, fee) => {
-          const rate = fee >= DEFAULT_TARGET_FEE ? RATE_ABOVE_TARGET : RATE_BELOW_TARGET;
-          return sum + fee * rate;
-        }, 0);
-
-        const elTrxVal   = document.getElementById('sumTransaksiValue');
-        const elTrxBadge = document.getElementById('sumTransaksiBadge');
-        const elRevVal   = document.getElementById('sumRevenueValue');
-        const elRevBadge = document.getElementById('sumRevenueBadge');
-        const elKomVal   = document.getElementById('sumKomisiValue');
-        const elKomBadge = document.getElementById('sumKomisiBadge');
+        // Hitung komisi: karena API sudah aggregate per sales, pakai fee langsung
+        const rate       = totalFee >= DEFAULT_TARGET_FEE ? RATE_ABOVE_TARGET : RATE_BELOW_TARGET;
+        const totalKomisi = totalFee * rate;
 
         if (elTrxVal)   elTrxVal.textContent   = fmtRp(totalVolume);
         if (elTrxBadge) elTrxBadge.textContent = jumlahTrx.toLocaleString('id-ID') + ' Transaksi';
@@ -241,137 +158,20 @@
       }
     }
 
-    async function loadSalesCustomerCount() {
-      // Untuk sales: hitung nasabah unik dari saham_transaksi YTD
-      try {
-        const raw = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
-        const u = raw ? JSON.parse(raw) : {};
-        const salesName = u.name || '';
-        if (!salesName) return;
-
-        const year = new Date().getFullYear();
-        const startDate = year + '-01-01';
-        const endDate   = year + '-12-31';
-
-        const clientIds = new Set();
-        let offset = 0;
-        const pageSize = 1000;
-        let keepFetching = true;
-
-        while (keepFetching) {
-          const { data, error } = await _sbDash
-            .from('saham_transaksi')
-            .select('client_id')
-            .gte('tanggal', startDate)
-            .lte('tanggal', endDate)
-            .ilike('sales_name', salesName)
-            .range(offset, offset + pageSize - 1);
-          if (error) { console.error('YTD customer error:', error); break; }
-          (data || []).forEach(r => { if (r.client_id) clientIds.add(r.client_id); });
-          if ((data || []).length < pageSize) keepFetching = false;
-          else offset += pageSize;
-        }
-
-        const el = document.getElementById('sumCustomerAktif');
-        if (el) el.textContent = clientIds.size.toLocaleString('id-ID');
-        const badge = document.getElementById('sumCustomerBadge');
-        if (badge) badge.textContent = 'YTD ' + year;
-      } catch(e) { console.error('Gagal load sales customer count:', e); }
-    }
-
-    async function loadHeadSalesCustomerCount() {
-      // Untuk head_sales: hitung nasabah unik dari semua transaksi saham YTD (tidak filter by sales_name)
-      try {
-        const year = new Date().getFullYear();
-        const startDate = year + '-01-01';
-        const endDate   = year + '-12-31';
-
-        const clientIds = new Set();
-        let offset = 0;
-        const pageSize = 1000;
-        let keepFetching = true;
-
-        while (keepFetching) {
-          const { data, error } = await _sbDash
-            .from('saham_transaksi')
-            .select('client_id')
-            .gte('tanggal', startDate)
-            .lte('tanggal', endDate)
-            .range(offset, offset + pageSize - 1);
-          if (error) { console.error('YTD customer error:', error); break; }
-          (data || []).forEach(r => { if (r.client_id) clientIds.add(r.client_id); });
-          if ((data || []).length < pageSize) keepFetching = false;
-          else offset += pageSize;
-        }
-
-        const el = document.getElementById('sumCustomerAktif');
-        if (el) el.textContent = clientIds.size.toLocaleString('id-ID');
-        const badge = document.getElementById('sumCustomerBadge');
-        if (badge) badge.textContent = 'YTD ' + year;
-      } catch(e) { console.error('Gagal load head sales customer count:', e); }
-    }
-
-    async function loadAllCustomerCount() {
-      // Untuk admin/head_account/bonds: hitung nasabah unik dari semua transaksi saham YTD
-      try {
-        const year = new Date().getFullYear();
-        const startDate = year + '-01-01';
-        const endDate   = year + '-12-31';
-
-        const clientIds = new Set();
-        let offset = 0;
-        const pageSize = 1000;
-        let keepFetching = true;
-
-        while (keepFetching) {
-          const { data, error } = await _sbDash
-            .from('saham_transaksi')
-            .select('client_id')
-            .gte('tanggal', startDate)
-            .lte('tanggal', endDate)
-            .range(offset, offset + pageSize - 1);
-          if (error) { console.error('YTD customer error:', error); break; }
-          (data || []).forEach(r => { if (r.client_id) clientIds.add(r.client_id); });
-          if ((data || []).length < pageSize) keepFetching = false;
-          else offset += pageSize;
-        }
-
-        const el = document.getElementById('sumCustomerAktif');
-        if (el) el.textContent = clientIds.size.toLocaleString('id-ID');
-        const badge = document.getElementById('sumCustomerBadge');
-        if (badge) badge.textContent = 'YTD ' + year;
-      } catch(e) { console.error('Gagal load all customer count:', e); }
-    }
-
     async function loadBirthdayWidget(role) {
       try {
         const raw = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
         const u = raw ? JSON.parse(raw) : {};
         const salesName = (u.name || '').toLowerCase().trim();
 
+        const res = await window._api.get('dashboard.php', { scope: 'birthday' });
+        let results = res.data || [];
+
+        // Filter: hanya tampilkan ulang tahun hari ini (backend bisa kembalikan ±7 hari)
         const today = new Date();
-        const todayM = today.getMonth() + 1; // 1-based
+        const todayM = today.getMonth() + 1;
         const todayD = today.getDate();
-
-        // Load semua customer yang punya birth_date (sama seperti birthday-calendar.html)
-        let allData = [];
-        let offset = 0;
-        const pageSize = 1000;
-        while (true) {
-          let q = _sbDash
-            .from('customers')
-            .select('client_name, birth_date, sales_person_name')
-            .not('birth_date', 'is', null)
-            .range(offset, offset + pageSize - 1);
-          const { data, error } = await q;
-          if (error || !data) break;
-          allData = allData.concat(data);
-          if (data.length < pageSize) break;
-          offset += pageSize;
-        }
-
-        // Filter: bulan & hari sama dengan hari ini
-        let results = allData.filter(c => {
+        results = results.filter(c => {
           if (!c.birth_date) return false;
           const parts = c.birth_date.split('-');
           if (parts.length < 3) return false;
@@ -416,11 +216,11 @@
 
     :root {
       /* Notion Design Tokens */
-      --primary:          #5645d4;
-      --primary-pressed:  #4534b3;
+      --primary:          #1b4332;
+      --primary-pressed:  #14532d;
       --on-primary:       #ffffff;
-      --brand-navy:       #0a1530;
-      --brand-navy-mid:   #1a2a52;
+      --brand-navy:       #14532d;
+      --brand-navy-mid:   #166534;
       --ink-deep:         #000000;
       --ink:              #1a1a1a;
       --charcoal:         #37352f;
@@ -440,16 +240,16 @@
       --tint-peach:       #ffe8d4;
       --tint-rose:        #fde0ec;
       --tint-mint:        #d9f3e1;
-      --tint-lavender:    #e6e0f5;
+      --tint-lavender:    #d9f3e1;
       --tint-sky:         #dcecfa;
       --tint-yellow:      #fef7d6;
       --tint-yellow-bold: #f9e79f;
       /* Brand accents */
-      --brand-orange:     #dd5b00;
-      --brand-orange-deep:#793400;
+      --brand-orange:     #f59e0b;
+      --brand-orange-deep:#b45309;
       --brand-green:      #1aae39;
-      --brand-purple:     #7b3ff2;
-      --brand-purple-800: #391c57;
+      --brand-purple:     #15803d;
+      --brand-purple-800: #14532d;
       /* Spacing */
       --nav-h: 68px;
     }
@@ -487,7 +287,7 @@
       position: absolute;
       width: 220px; height: 220px;
       border-radius: 50%;
-      background: rgba(86,69,212,0.18);
+      background: rgba(27,67,50,0.18);
       right: -60px; top: -60px;
       pointer-events: none;
     }
@@ -496,21 +296,21 @@
       position: absolute;
       width: 120px; height: 120px;
       border-radius: 50%;
-      background: rgba(86,69,212,0.10);
+      background: rgba(27,67,50,0.10);
       right: 100px; bottom: -40px;
       pointer-events: none;
     }
     .greeting-left { display: flex; flex-direction: column; justify-content: center; position: relative; z-index:1; }
     .greeting-time {
-      font-size: 11px; font-weight: 600; color: var(--on-dark-muted);
+      font-size: 11px; font-weight: 600; color: var(--on-dark);
       text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;
     }
     .greeting-name {
       font-size: 28px; font-weight: 700; color: var(--on-dark); line-height: 1.2; letter-spacing: -0.5px;
     }
-    .greeting-name span { color: #a78bfa; }
+    .greeting-name span { color: var(--gold-light); }
     .greeting-sub {
-      font-size: 14px; color: var(--on-dark-muted); margin-top: 8px; font-weight: 400; line-height: 1.5;
+      font-size: 14px; color: var(--on-dark); margin-top: 8px; font-weight: 400; line-height: 1.5;
     }
     .greeting-date-box {
       background: var(--brand-navy-mid);
@@ -554,7 +354,7 @@
     .stat-card:nth-child(4) { animation-delay: 0.26s; }
 
     /* Pastel card tints from DESIGN.md */
-    .stat-card.obligasi  { background: var(--tint-lavender); border-color: #d0c8f0; }
+    .stat-card.obligasi  { background: var(--tint-lavender); border-color: #b7e4c7; }
     .stat-card.reksadana { background: var(--tint-mint);     border-color: #b5e8c3; }
     .stat-card.saham     { background: var(--tint-peach);    border-color: #f5ccaa; }
     .stat-card.waran     { background: var(--tint-rose);     border-color: #f2b8d8; }
@@ -649,24 +449,25 @@
     /* ── WA FLOATING ── */
     .wa-float {
       position: fixed; bottom: 28px; right: 28px; z-index: 999;
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; gap: 0;
       background: var(--canvas);
       border-radius: 50px;
-      padding: 10px;
+      padding: 8px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.12);
       border: 1px solid var(--hairline);
       cursor: pointer; text-decoration: none;
-      transition: transform 0.2s, box-shadow 0.2s, border-radius 0.25s, padding 0.25s, background 0.2s;
+      transition: transform 0.2s, box-shadow 0.2s, border-radius 0.25s, padding 0.25s, gap 0.25s, background 0.2s;
       animation: fadeUp 0.5s 0.5s ease both;
       overflow: hidden;
-      max-width: 52px;
+      max-width: 56px;
     }
     .wa-float:hover {
       transform: translateY(-2px);
       box-shadow: 0 8px 28px rgba(0,0,0,0.15);
-      border-radius: 12px;
-      padding: 10px 16px 10px 10px;
-      max-width: 260px;
+      border-radius: 50px;
+      padding: 8px 18px 8px 8px;
+      gap: 12px;
+      max-width: 280px;
     }
     .wa-info {
       line-height: 1.35;
@@ -682,8 +483,8 @@
     }
     .wa-title { font-size: 13px; font-weight: 600; color: var(--ink); }
     .wa-num   { font-size: 12px; color: var(--steel); }
-    .wa-icon  { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; transition: border-radius 0.25s; overflow: hidden; }
-    .wa-float:hover .wa-icon { border-radius: 8px; }
+    .wa-icon  { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; background: #25D366; }
+    .wa-icon svg { width: 24px; height: 24px; display: block; }
 
     /* ── BIRTHDAY WIDGET ── */
     .birthday-widget {
@@ -860,7 +661,7 @@
       background: var(--surface-soft);
     }
     .cl-version.active {
-      border-color: #d0c8f0;
+      border-color: #b7e4c7;
       background: var(--tint-lavender);
     }
     .cl-version-header {
@@ -1036,7 +837,7 @@
 
   <!-- Version -->
   <div class="version-bar">
-    <span class="version-text">Fawz Pro v1.10</span>
+    <span class="version-text">Sales Petik Profit v1.10</span>
     <button class="version-info-btn" id="changelogBtn" title="Lihat Changelog" aria-label="Lihat Changelog">
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     </button>
@@ -1050,7 +851,7 @@
     <div class="changelog-header">
       <div>
         <div class="changelog-title" id="changelogTitle">Changelog</div>
-        <div class="changelog-subtitle">Fawz Pro — Riwayat Pembaruan</div>
+        <div class="changelog-subtitle">Sales Petik Profit — Riwayat Pembaruan</div>
       </div>
       <button class="changelog-close" id="changelogClose" aria-label="Tutup">&times;</button>
     </div>
@@ -1112,7 +913,7 @@
           <li><strong>WA Float</strong> — hanya tampilkan ikon saat idle, teks muncul saat hover.</li>
           <li><strong>WA Float</strong> — logo WA diperbaiki agar fit penuh di kontainer.</li>
           <li><strong>Changelog Modal</strong> — layout diubah dari bottom sheet menjadi modal persegi di tengah layar.</li>
-          <li><strong>Dashboard</strong> — versi Fawz Pro ditampilkan di bawah dengan tombol ⓘ untuk membuka changelog.</li>
+          <li><strong>Dashboard</strong> — versi Sales Petik Profit ditampilkan di bawah dengan tombol ⓘ untuk membuka changelog.</li>
         </ul>
       </div>
 
@@ -1190,10 +991,10 @@
       <div class="cl-version">
         <div class="cl-version-header">
           <span class="cl-badge">v1.2</span>
-          <span class="cl-date">Fawz Point &amp; Bond</span>
+          <span class="cl-date">Point &amp; Bond</span>
         </div>
         <ul class="cl-list">
-          <li>Sistem Fawz Point dengan redemption.</li>
+          <li>Sistem Point dengan redemption.</li>
           <li>Bond Calculator dan Bond Transaction.</li>
         </ul>
       </div>
@@ -1232,7 +1033,7 @@
     <div class="wa-title">Contact Person (Admin)</div>
     <div class="wa-num">+62 811-6361-598</div>
   </div>
-  <div class="wa-icon"><img src="assets/logo/wa.png" alt="WhatsApp" style="width:36px;height:36px;object-fit:cover;border-radius:50%;display:block;"></div>
+  <div class="wa-icon"><svg viewBox="0 0 32 32" fill="#fff" xmlns="http://www.w3.org/2000/svg"><path d="M16.004 3.2c-7.07 0-12.8 5.73-12.8 12.8 0 2.26.6 4.46 1.73 6.4L3.2 28.8l6.57-1.72a12.74 12.74 0 0 0 6.23 1.6h.01c7.06 0 12.8-5.73 12.8-12.8 0-3.42-1.33-6.63-3.75-9.05A12.71 12.71 0 0 0 16.004 3.2zm0 23.3h-.01a10.6 10.6 0 0 1-5.4-1.48l-.39-.23-4.03 1.06 1.08-3.93-.25-.4a10.57 10.57 0 0 1-1.62-5.63c0-5.86 4.77-10.63 10.63-10.63 2.84 0 5.5 1.11 7.51 3.12a10.56 10.56 0 0 1 3.11 7.52c0 5.86-4.77 10.62-10.62 10.62zm5.83-7.96c-.32-.16-1.89-.93-2.18-1.04-.29-.11-.5-.16-.72.16-.21.32-.82 1.04-1.01 1.25-.19.21-.37.24-.69.08-.32-.16-1.35-.5-2.57-1.59-.95-.85-1.59-1.9-1.78-2.22-.19-.32-.02-.49.14-.65.14-.14.32-.37.48-.56.16-.19.21-.32.32-.53.11-.21.05-.4-.03-.56-.08-.16-.72-1.74-.99-2.38-.26-.62-.52-.54-.72-.55l-.61-.01c-.21 0-.56.08-.85.4-.29.32-1.11 1.09-1.11 2.66 0 1.57 1.14 3.08 1.3 3.29.16.21 2.25 3.44 5.46 4.82.76.33 1.36.53 1.83.68.77.24 1.47.21 2.02.13.62-.09 1.89-.77 2.16-1.52.27-.74.27-1.38.19-1.52-.08-.13-.29-.21-.61-.37z"/></svg></div>
 </a>
 
 <script>
@@ -1263,24 +1064,116 @@
       // Head Sales bisa akses semua menu seperti admin
     }
 
+    // ── GREETING: variasi kata per periode waktu ──
+    const GREETINGS = {
+      pagi: {
+        titles: [
+          'Selamat Pagi',
+          'Pagi yang Cerah',
+          'Halo, Pagi!',
+          'Semangat Pagi',
+          'Pagi Penuh Peluang'
+        ],
+        subs: [
+          'Mulai hari dengan semangat dan fokus.',
+          'Pagi yang baik untuk mencetak profit baru.',
+          'Secangkir kopi, satu target, satu langkah maju.',
+          'Awali harimu, peluang sudah menanti di pasar.',
+          'Energi penuh, siap petik profit hari ini.'
+        ]
+      },
+      siang: {
+        titles: [
+          'Selamat Siang',
+          'Siang yang Produktif',
+          'Halo, Siang!',
+          'Tetap Semangat Siang',
+          'Siang Penuh Momentum'
+        ],
+        subs: [
+          'Tetap produktif di tengah hari.',
+          'Jaga momentum, hari masih panjang.',
+          'Cek lagi target harimu, masih sempat dikejar.',
+          'Istirahat sejenak, lalu lanjut taklukkan sisa hari.',
+          'Semangat siang, profit tak kenal jam istirahat.'
+        ]
+      },
+      sore: {
+        titles: [
+          'Selamat Sore',
+          'Sore yang Hangat',
+          'Halo, Sore!',
+          'Sore Menjelang Senja',
+          'Sore Penuh Pencapaian'
+        ],
+        subs: [
+          'Tinjau progress harimu sebelum selesai.',
+          'Rapikan sisa pekerjaan, finish dengan rapi.',
+          'Sore yang pas untuk evaluasi hasil hari ini.',
+          'Satu dorongan terakhir sebelum tutup hari.',
+          'Kunci pencapaian hari ini, besok lebih baik lagi.'
+        ]
+      },
+      malam: {
+        titles: [
+          'Selamat Malam',
+          'Malam yang Tenang',
+          'Halo, Malam!',
+          'Malam Penuh Syukur',
+          'Istirahat Malam'
+        ],
+        subs: [
+          'Istirahat yang cukup untuk esok hari.',
+          'Hari yang baik layak diakhiri dengan tenang.',
+          'Rehat sejenak, besok pasar menanti lagi.',
+          'Terima kasih atas kerja kerasmu hari ini.',
+          'Isi ulang energi, profit besok sudah menunggu.'
+        ]
+      }
+    };
+
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
     function getGreeting(hour) {
-      if (hour >= 4  && hour < 11) return { text: 'Selamat Pagi',  sub: 'Mulai hari dengan semangat dan fokus.' };
-      if (hour >= 11 && hour < 15) return { text: 'Selamat Siang', sub: 'Tetap produktif di tengah hari.' };
-      if (hour >= 15 && hour < 19) return { text: 'Selamat Sore',  sub: 'Tinjau progress harimu sebelum selesai.' };
-      return                              { text: 'Selamat Malam',  sub: 'Istirahat yang cukup untuk esok hari.' };
+      let period;
+      if      (hour >= 4  && hour < 11) period = 'pagi';
+      else if (hour >= 11 && hour < 15) period = 'siang';
+      else if (hour >= 15 && hour < 19) period = 'sore';
+      else                              period = 'malam';
+      const g = GREETINGS[period];
+      return { text: pick(g.titles), sub: pick(g.subs) };
     }
 
     const DAYS   = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
     const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
     const pad = n => String(n).padStart(2, '0');
 
+    let lastGreetPeriod = null;
+
+    function periodOf(hour) {
+      if (hour >= 4  && hour < 11) return 'pagi';
+      if (hour >= 11 && hour < 15) return 'siang';
+      if (hour >= 15 && hour < 19) return 'sore';
+      return 'malam';
+    }
+
+    // Greeting dipilih acak sekali, hanya di-refresh saat periode waktu berganti,
+    // supaya sub-text tidak ganti-ganti tiap detik mengikuti clock.
+    function refreshGreeting(hour) {
+      const g = getGreeting(hour);
+      document.getElementById('greetingTime').textContent = g.text;
+      document.getElementById('greetingName').textContent = getUserName();
+      document.getElementById('greetingSub').textContent  = g.sub;
+    }
+
     function updateClock() {
       const now  = new Date();
       const hour = now.getHours();
-      const g    = getGreeting(hour);
-      document.getElementById('greetingTime').textContent     = g.text;
-      document.getElementById('greetingName').textContent     = getUserName();
-      document.getElementById('greetingSub').textContent      = g.sub;
+      const period = periodOf(hour);
+      if (period !== lastGreetPeriod) {
+        lastGreetPeriod = period;
+        refreshGreeting(hour);
+      }
       document.getElementById('greetingDay').textContent      = DAYS[now.getDay()];
       document.getElementById('greetingDateFull').textContent = now.getDate() + ' ' + MONTHS[now.getMonth()] + ' ' + now.getFullYear();
       document.getElementById('greetingClock').textContent    = pad(hour) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());

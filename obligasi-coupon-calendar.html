@@ -4,7 +4,7 @@
   <script src="config.js"></script>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Fawz Pro | Kalender Kupon Obligasi</title>
+  <title>Sales Petik Profit | Kalender Kupon Obligasi</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -26,7 +26,7 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --navy: #0d0d2b; --gold: #f5a623; --gold-light: #ffc857;
+      --navy: #1b4332; --gold: #f5a623; --gold-light: #ffd43b;
       --bg: #f4f5fb; --white: #fff; --border: #e0e0ef;
       --text: #1a1a3a; --gray: #888; --nav-h: 68px;
       --green: #27ae60; --red: #e74c3c;
@@ -112,7 +112,7 @@
       font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 20px;
     }
     /* today highlight */
-    .day-header.today { background: linear-gradient(135deg, #1a0e4a, #2d1b6b); border-left: 4px solid var(--gold); }
+    .day-header.today { background: linear-gradient(135deg, #166534, #2d1b6b); border-left: 4px solid var(--gold); }
 
     .day-items { background: #fff; border-radius: 0 0 10px 10px; border: 1px solid #eee; border-top: none; overflow: hidden; }
     .coupon-item {
@@ -136,7 +136,7 @@
     .cat-gov-idr  { background: #e8f8f0; color: #1e7e4e; }
     .cat-gov-usd  { background: #e8f0ff; color: #2d4abf; }
     .cat-korp-idr { background: #fff8ec; color: #b37a00; }
-    .cat-korp-usd { background: #fdf0ff; color: #7b3ff2; }
+    .cat-korp-usd { background: #fdf0ff; color: #15803d; }
 
     .coupon-detail { flex: 1; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
     .coupon-detail-item { font-size: 0.78rem; color: var(--gray); display: flex; flex-direction: column; gap: 2px; }
@@ -185,7 +185,7 @@
       <div class="page-subtitle">Jadwal pembayaran kupon obligasi per bulan</div>
       <div class="title-underline"></div>
     </div>
-    <a href="obligasi-pasar-sekunder.html" style="display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 16px;border:1.5px solid #e0e0ef;border-radius:10px;background:#fff;color:#0d0d2b;font-family:'Inter',sans-serif;font-size:0.875rem;font-weight:600;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.borderColor='#f5a623';this.style.color='#f5a623'" onmouseout="this.style.borderColor='#e0e0ef';this.style.color='#0d0d2b'">← Kembali</a>
+    <a href="obligasi-pasar-sekunder.html" style="display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 16px;border:1.5px solid #e0e0ef;border-radius:10px;background:#fff;color:#1b4332;font-family:'Inter',sans-serif;font-size:0.875rem;font-weight:600;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.borderColor='#f5a623';this.style.color='#f5a623'" onmouseout="this.style.borderColor='#e0e0ef';this.style.color='#1b4332'">← Kembali</a>
   </div>
 
   <!-- Month Nav -->
@@ -382,7 +382,7 @@
   function renderSummary(totalDays, totalEvents, totalObligasi) {
     document.getElementById('summaryChips').innerHTML = `
       <div class="chip">
-        <span class="chip-dot" style="background:#5645d4;"></span>
+        <span class="chip-dot" style="background:#1b4332;"></span>
         <span class="chip-count">${totalDays}</span>
         <span>hari ada kupon</span>
       </div>

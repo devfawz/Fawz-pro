@@ -4,11 +4,12 @@
   <script src="config.js"></script>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Fawz Pro | Laporan Komisi Sales</title>
+  <title>Sales Petik Profit | Laporan Komisi Sales</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="js/commission-settings.js"></script>
   <script>
     const SUPABASE_URL = (window.__FAWZ_CONFIG__ || {}).supabaseUrl || '';
     const SUPABASE_KEY = (window.__FAWZ_CONFIG__ || {}).supabaseKey || '';
@@ -20,9 +21,9 @@
   <style>
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
     :root {
-      --navy:#0d0d2b; --gold:#f5a623; --gold-light:#ffc857;
+      --navy:#1b4332; --gold:#f5a623; --gold-light:#ffd43b;
       --bg:#f4f5fb; --white:#fff; --border:#e0e0ef; --text:#1a1a3a;
-      --gray:#888; --green:#27ae60; --indigo:#4f46e5; --nav-h:68px;
+      --gray:#888; --green:#27ae60; --indigo:#1b4332; --nav-h:68px;
     }
     body { font-family:'Poppins',sans-serif; background:var(--bg); min-height:100vh; padding-top:var(--nav-h); color:var(--text); }
     .page-container { max-width:1100px; margin:0 auto; padding:36px 28px; }
@@ -30,7 +31,7 @@
     .page-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:16px; }
     .page-title { font-size:2rem; font-weight:700; color:var(--navy); }
     .page-subtitle { font-size:.88rem; color:var(--gray); margin-top:4px; }
-    .title-underline { width:48px; height:3px; background:linear-gradient(90deg,var(--indigo),#818cf8); border-radius:2px; margin-top:8px; }
+    .title-underline { width:48px; height:3px; background:linear-gradient(90deg,var(--indigo),#52b788); border-radius:2px; margin-top:8px; }
     .btn { display:inline-flex; align-items:center; gap:7px; padding:11px 20px; border-radius:10px; font-family:'Poppins',sans-serif; font-size:.875rem; font-weight:600; cursor:pointer; transition:all .2s; border:none; white-space:nowrap; }
     .btn-primary { background:var(--indigo); color:#fff; }
     .btn-primary:hover { background:#3730a3; }
@@ -423,18 +424,19 @@ async function generateReport() {
   document.getElementById('loadingWrap').style.display = 'flex';
 
   try {
-    const [sahamData, oblData, slipInfo, yearSaham, yearObl] = await Promise.all([
+    const [sahamData, oblData, slipInfo, yearSaham, yearObl, commissionSettings] = await Promise.all([
       fetchSahamData(salesId, periodStr),
       fetchObligasiData(salesId, periodStr),
       fetchSlipInfo(salesId, periodStr),
       fetchYearlyFee(salesId, year, 'saham'),
       fetchYearlyFee(salesId, year, 'obligasi'),
+      fetchCommissionSettings(salesId, periodStr),
     ]);
 
     document.getElementById('loadingWrap').style.display = 'none';
     document.getElementById('reportWrapper').style.display = 'flex';
 
-    buildReportHTML(salesObj, monthName, month, year, periodStr, sahamData, oblData, slipInfo, yearSaham, yearObl, bankName, bankAccount);
+    buildReportHTML(salesObj, monthName, month, year, periodStr, sahamData, oblData, slipInfo, yearSaham, yearObl, bankName, bankAccount, commissionSettings);
   } catch(e) {
     console.error(e);
     document.getElementById('loadingWrap').style.display = 'none';
@@ -600,6 +602,32 @@ async function fetchSlipInfo(salesId, period) {
   return { nama: salesName, bank_name: '', bank_account: '', bank_holder: '' };
 }
 
+// Ambil pengaturan komisi saham (target & rate berjenjang) untuk sales & periode.
+// Logika resolusi sama persis dengan sales-commission.html:
+// cocokkan sales_name di sales_commission_settings per-periode, jika tidak ada
+// pakai GLOBAL_DEFAULT (target Rp 10jt, ≥target 12%, <target 5%).
+async function fetchCommissionSettings(salesId, period) {
+  const GD = (window.CommissionSettings && window.CommissionSettings.GLOBAL_DEFAULT)
+    ? window.CommissionSettings.GLOBAL_DEFAULT
+    : { target_fee: 10_000_000, rate_above: 0.12, rate_below: 0.05 };
+  const fallback = { target_fee: GD.target_fee, rate_above: GD.rate_above, rate_below: GD.rate_below, isDefault: true };
+  const salesName = salesId.trim();
+  if (!salesName) return fallback;
+  try {
+    const { data, error } = await window._supabase
+      .from('sales_commission_settings')
+      .select('sales_name, period, target_fee, rate_above, rate_below')
+      .eq('period', period);
+    if (error || !data) return fallback;
+    const key = salesName.toLowerCase();
+    const record = data.find(r => (r.sales_name || '').toLowerCase().trim() === key);
+    if (record) {
+      return { target_fee: record.target_fee, rate_above: record.rate_above, rate_below: record.rate_below, isDefault: false };
+    }
+  } catch(e) { console.warn('[fetchCommissionSettings]', e.message); }
+  return fallback;
+}
+
 async function fetchYearlyFee(salesId, year, type) {
   const months = Array(12).fill(0);
   const sName = salesId.trim(); // salesId IS nama sales
@@ -671,12 +699,24 @@ async function fetchYearlyFee(salesId, year, type) {
 function fmtRp(n) { return 'Rp ' + Math.round(n||0).toLocaleString('id-ID') + ',-'; }
 function fmtNum(n) { return Math.round(n||0).toLocaleString('id-ID'); }
 
-function buildReportHTML(salesObj, monthName, month, year, period, saham, obl, slip, yearSaham, yearObl, bankName, bankAccount) {
-  const COMMISSION_SAHAM_RATE = 0.06; // (60%) x 10% = 6%
+function buildReportHTML(salesObj, monthName, month, year, period, saham, obl, slip, yearSaham, yearObl, bankName, bankAccount, commissionSettings) {
   const COMMISSION_OBL_RATE   = 0.06;
   const COMMISSION_MIN        = 100000;
 
-  const komisiSaham = saham.totalFee * COMMISSION_SAHAM_RATE;
+  // ── KOMISI SAHAM: pakai rate berjenjang berbasis target, sama dengan
+  // sales-commission.html (≥ target → rate_above, < target → rate_below).
+  const settings = commissionSettings || { target_fee: 10_000_000, rate_above: 0.12, rate_below: 0.05 };
+  const sahamCalc = (window.CommissionSettings && window.CommissionSettings.calculateCommission)
+    ? window.CommissionSettings.calculateCommission(saham.totalFee, settings)
+    : (function () {
+        const hit = saham.totalFee >= settings.target_fee;
+        const rate = hit ? settings.rate_above : settings.rate_below;
+        return { commission: saham.totalFee * rate, rate, hitTarget: hit };
+      })();
+  const komisiSaham      = sahamCalc.commission;
+  const komisiSahamRate  = sahamCalc.rate; // desimal, mis. 0.12
+  const komisiSahamRatePct = (komisiSahamRate * 100).toLocaleString('id-ID', { maximumFractionDigits: 2 });
+
   const komisiObl   = obl.totalFee   * COMMISSION_OBL_RATE;
   const grandTotal  = komisiSaham + komisiObl;
 
@@ -746,7 +786,7 @@ function buildReportHTML(salesObj, monthName, month, year, period, saham, obl, s
         <tbody>
           <tr>
             <td>Total Komisi</td>
-            <td style="font-size:.78rem;color:var(--gray);">(${fmtRp(saham.totalFee)} × 60%) × 10%</td>
+            <td style="font-size:.78rem;color:var(--gray);">${fmtRp(saham.totalFee)} × ${komisiSahamRatePct}%</td>
             <td style="text-align:right;font-weight:600;">= ${fmtRp(komisiSaham)}</td>
           </tr>
         </tbody>
@@ -879,7 +919,7 @@ function drawBarChart(canvasId, data, labels, label, highlightIdx) {
   if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); }
 
   const colors = data.map((_, i) =>
-    i === highlightIdx ? '#f5a623' : (data[i] > 0 ? '#0d0d2b' : '#e8e8f5')
+    i === highlightIdx ? '#f5a623' : (data[i] > 0 ? '#1b4332' : '#e8e8f5')
   );
 
   chartInstances[canvasId] = new Chart(ctx, {

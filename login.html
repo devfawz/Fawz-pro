@@ -4,14 +4,14 @@
   <script src="config.js"></script>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Fawz Pro | Login</title>
+  <title>Sales Petik Profit | Login</title>
   <link rel="icon" type="image/png" href="assets/logo/fawz.png"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --navy: #0d0d2b; --purple: #2d1b69;
-      --gold: #f5a623; --gold-light: #ffc857;
+      --navy: #1b4332; --purple: #15803d;
+      --gold: #f5a623; --gold-light: #ffd43b;
       --white: #ffffff; --gray: #8888aa;
       --border: rgba(255,255,255,0.12);
     }
@@ -20,7 +20,7 @@
     /* LEFT */
     .left-panel {
       width: 55%; position: relative;
-      background: linear-gradient(145deg, #0a0a22 0%, #1a0e4a 40%, #0d0d2b 100%);
+      background: linear-gradient(145deg, #0b2a1d 0%, #166534 40%, #1b4332 100%);
       display: flex; align-items: center; justify-content: center; overflow: hidden;
     }
     .left-panel::before {
@@ -51,7 +51,7 @@
     .login-header { margin-bottom: 32px; }
     .login-header h2 { font-family: 'Inter', sans-serif; font-size: 1.85rem; font-weight: 700; color: var(--navy); margin-bottom: 6px; letter-spacing: -0.5px; }
     .login-header p { font-size: 0.88rem; color: #999; font-weight: 400; }
-    .login-header-line { width: 36px; height: 3px; background: linear-gradient(90deg, #f5a623, #ffc857); border-radius: 2px; margin-top: 10px; }
+    .login-header-line { width: 36px; height: 3px; background: linear-gradient(90deg, #f5a623, #ffd43b); border-radius: 2px; margin-top: 10px; }
 
     .form-group { margin-bottom: 18px; }
     .form-group label { display: block; font-size: 0.8rem; font-weight: 600; color: #444; margin-bottom: 7px; letter-spacing: 0.5px; text-transform: uppercase; }
@@ -105,11 +105,11 @@
   <div class="geo geo-2"></div>
   <div class="geo geo-3"></div>
   <div class="left-content">
-    <img src="assets/logo/fawz-white.png" alt="FAWZ Pro" class="brand-logo"
+    <img src="assets/logo/fawz-white.png" alt="Sales Petik Profit" class="brand-logo"
       onerror="this.style.display='none'; document.getElementById('logoFallback').style.display='block'"/>
     <div id="logoFallback" style="display:none; text-align:center;">
       <div style="font-size:5rem; line-height:1;">🦁</div>
-      <div style="font-size:2.5rem; font-weight:700; color:#f5a623; letter-spacing:4px; margin-top:8px;">FAWZ</div>
+      <div style="font-size:2.5rem; font-weight:700; color:#f5a623; letter-spacing:4px; margin-top:8px;">PETIK PROFIT</div>
       <div style="font-size:0.7rem; color:rgba(245,166,35,0.55); letter-spacing:5px; margin-top:4px;">BEYOND GENERATIONS</div>
     </div>
   </div>
@@ -119,7 +119,7 @@
   <div class="login-card">
     <div class="login-header">
       <h2>Selamat Datang</h2>
-      <p>Masuk ke akun Fawz Pro Anda</p>
+      <p>Masuk ke akun Sales Petik Profit Anda</p>
       <div class="login-header-line"></div>
     </div>
 
@@ -156,29 +156,26 @@
     </button>
 
     <div class="login-footer">
-      © 2026 PT Fawz Finansial Indonesia
+      © 2026 PT Petik Profit Indonesia
     </div>
   </div>
 </div>
 
-<!-- Supabase SDK -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
-  const SUPABASE_URL = (window.__FAWZ_CONFIG__ || {}).supabaseUrl || '';
-    const SUPABASE_KEY = (window.__FAWZ_CONFIG__ || {}).supabaseKey || '';
-  const _supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  window._supabase = _supabaseClient;
-  window._supabaseReady = true;
+  // Jika sudah login, redirect langsung
+  (function() {
+    const saved = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
+    if (saved) {
+      try {
+        const u = JSON.parse(saved);
+        if (u.token && (!u._exp || Date.now() < u._exp)) {
+          sessionStorage.setItem('fawz_user', saved);
+          window.location.href = 'dashboard.html';
+        }
+      } catch(e) {}
+    }
+  })();
 
-  // Jika sudah login, redirect
-  const saved = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
-  if (saved) {
-    sessionStorage.setItem('fawz_user', saved);
-    window.location.href = 'dashboard.html';
-  }
-</script>
-
-<script>
   function togglePwd() {
     const p = document.getElementById('password');
     const iconShow = document.getElementById('eyeIconShow');
@@ -226,7 +223,6 @@
       return;
     }
 
-    // Brute-force protection
     if (Date.now() < _loginLockedUntil) {
       const sisa = Math.ceil((_loginLockedUntil - Date.now()) / 1000);
       showMsg('error', `⏳ Terlalu banyak percobaan. Coba lagi dalam ${sisa} detik.`);
@@ -236,56 +232,46 @@
     setLoading(true);
 
     try {
-      if (!window._supabaseReady) throw new Error('Supabase tidak tersedia');
+      const BASE = (window.__FAWZ_CONFIG__ || {}).apiUrl || '/api';
+      const res  = await fetch(BASE + '/auth.php?action=login', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ username, password }),
+      });
+      const json = await res.json();
 
-      const { data, error } = await window._supabase
-        .from('accounts')
-        .select('id, username, name, role')
-        .eq('username', username)
-        .eq('password', password)
-        .single();
-
-      // PGRST116 = no rows found (akun tidak ada / salah password)
-      if (error && error.code !== 'PGRST116') throw error;
-
-      if (data) {
+      if (json.ok && json.data?.token) {
         _loginAttempts = 0;
-        // Simpan hanya data non-sensitif — tidak menyimpan password
-        const sessionUser = {
-          username: data.username,
-          name:     data.name,
-          role:     data.role,
-          id:       data.id || null
-        };
-        sessionStorage.setItem('fawz_user', JSON.stringify(sessionUser));
 
-        if (document.getElementById('remember').checked) {
-          // Simpan dengan expiry 30 hari
-          const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
-          localStorage.setItem('fawz_user_remember', JSON.stringify({ ...sessionUser, _exp: expiry }));
-        } else {
-          // Simpan session biasa dengan expiry 8 jam agar tab baru tidak logout
-          const expiry = Date.now() + 8 * 60 * 60 * 1000;
-          localStorage.setItem('fawz_user_remember', JSON.stringify({ ...sessionUser, _exp: expiry }));
-        }
+        const sessionUser = {
+          ...json.data.user,
+          token: json.data.token,
+        };
+
+        const remember = document.getElementById('remember').checked;
+        const expiry   = Date.now() + (remember ? 30 : 1) * 24 * 60 * 60 * 1000;
+        const stored   = JSON.stringify({ ...sessionUser, _exp: expiry });
+
+        sessionStorage.setItem('fawz_user', stored);
+        localStorage.setItem('fawz_user_remember', stored);
 
         showMsg('success', '✅ Login berhasil! Mengalihkan...');
-        setTimeout(() => { window.location.href = 'dashboard.html'; }, 1000);
+        setTimeout(() => { window.location.href = 'dashboard.html'; }, 900);
       } else {
         _loginAttempts++;
         if (_loginAttempts >= 5) {
-          _loginLockedUntil = Date.now() + 30_000; // kunci 30 detik
+          _loginLockedUntil = Date.now() + 30_000;
           _loginAttempts = 0;
           showMsg('error', '🔒 Terlalu banyak percobaan. Akun dikunci 30 detik.');
         } else {
-          showMsg('error', `❌ Username atau password salah. (${_loginAttempts}/5)`);
+          showMsg('error', `❌ ${json.error || 'Username atau password salah.'} (${_loginAttempts}/5)`);
         }
         document.getElementById('password').value = '';
         setLoading(false);
       }
     } catch (err) {
       console.error('Login error:', err);
-      showMsg('error', '⚠️ Gagal terhubung ke server. Periksa koneksi internet Anda.');
+      showMsg('error', '⚠️ Gagal terhubung ke server. Periksa koneksi internet.');
       setLoading(false);
     }
   }

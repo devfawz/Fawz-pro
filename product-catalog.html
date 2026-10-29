@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <script src="config.js"></script>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sales Petik Profit | Katalog Produk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    const SUPABASE_URL = (window.__FAWZ_CONFIG__ || {}).supabaseUrl || '';
+    const SUPABASE_KEY = (window.__FAWZ_CONFIG__ || {}).supabaseKey || '';
+    const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    window._supabase = _sb;
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #1b4332; --gold: #f5a623; --gold-light: #ffd43b;
+      --bg: #f4f5fb; --white: #fff; --border: #e0e0ef;
+      --text: #1a1a3a; --gray: #888; --nav-h: 68px;
+      --green: #16a34a; --red: #dc2626; --purple: #15803d;
+      --blue: #2563eb;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); min-height: 100vh; padding-top: var(--nav-h); color: var(--text); }
+
+    @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes spin    { to { transform: rotate(360deg); } }
+
+    .page-container { max-width: 1280px; margin: 0 auto; padding: 36px 28px; }
+
+    /* ── Header ── */
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 28px; flex-wrap: wrap; gap: 16px; animation: fadeUp .4s ease both; }
+    .page-title  { font-size: 2rem; font-weight: 900; color: var(--navy); }
+    .page-subtitle { font-size: .88rem; color: var(--gray); margin-top: 4px; }
+    .title-underline { width: 48px; height: 3px; background: linear-gradient(90deg,var(--gold),var(--gold-light)); border-radius: 2px; margin-top: 8px; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      height: 42px; padding: 0 20px;
+      background: linear-gradient(135deg,var(--navy),#14532d);
+      color: #fff; border: none; border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-size: .85rem; font-weight: 600;
+      cursor: pointer; transition: opacity .2s; white-space: nowrap;
+    }
+    .btn-primary:hover { opacity: .88; }
+
+    /* ── Summary Cards ── */
+    .summary-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 24px; animation: fadeUp .4s .06s ease both; }
+    .summary-box { background: #fff; border-radius: 14px; padding: 20px 22px; box-shadow: 0 2px 10px rgba(0,0,0,.05); }
+    .summary-val { font-size: 1.9rem; font-weight: 800; color: var(--navy); }
+    .summary-val.gold   { color: var(--gold); }
+    .summary-val.green  { color: var(--green); }
+    .summary-val.purple { color: var(--purple); }
+    .summary-label { font-size: .7rem; color: var(--gray); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      background: #fff; border-radius: 14px; padding: 14px 18px;
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      box-shadow: 0 2px 10px rgba(0,0,0,.05); margin-bottom: 18px;
+      animation: fadeUp .4s .1s ease both;
+    }
+    .filter-bar input, .filter-bar select {
+      height: 36px; border: 1px solid var(--border); border-radius: 8px;
+      padding: 0 12px; font-family: 'Inter', sans-serif; font-size: .8rem; color: var(--text); outline: none;
+    }
+    .filter-bar input:focus, .filter-bar select:focus { border-color: var(--gold); }
+    .filter-spacer { flex: 1; }
+
+    /* ── Product Grid ── */
+    .products-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 18px;
+      animation: fadeUp .4s .12s ease both;
+    }
+
+    .product-card {
+      background: #fff; border-radius: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.06);
+      overflow: hidden; transition: box-shadow .2s, transform .2s;
+      display: flex; flex-direction: column;
+    }
+    .product-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,.1); transform: translateY(-2px); }
+
+    .card-img {
+      width: 100%; height: 160px; object-fit: cover;
+      background: linear-gradient(135deg,#f0f0f8,#e8e8f4);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 3rem; color: #ccc;
+      flex-shrink: 0;
+    }
+    .card-img img { width: 100%; height: 100%; object-fit: cover; }
+
+    .card-body { padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .card-category {
+      display: inline-block; padding: 2px 10px;
+      background: #f0f0fa; color: var(--purple);
+      font-size: .68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; border-radius: 20px;
+    }
+    .card-name { font-size: 1rem; font-weight: 700; color: var(--navy); line-height: 1.3; }
+    .card-desc { font-size: .78rem; color: var(--gray); line-height: 1.5; flex: 1; }
+
+    .card-pricing { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+    .price-row { display: flex; align-items: center; gap: 6px; font-size: .82rem; }
+    .price-icon { font-size: .9rem; }
+    .price-money { font-weight: 700; color: var(--green); }
+    .price-points { font-weight: 700; color: var(--purple); }
+    .price-na { color: #ccc; font-size: .75rem; }
+    .mixed-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; background: #fefce8; border: 1px solid #fde68a;
+      color: #92400e; font-size: .68rem; font-weight: 600;
+      border-radius: 20px; margin-top: 2px; width: fit-content;
+    }
+
+    .card-meta { display: flex; align-items: center; justify-content: space-between; font-size: .75rem; color: var(--gray); margin-top: 4px; }
+    .stock-badge {
+      padding: 2px 8px; border-radius: 20px; font-weight: 600; font-size: .68rem;
+    }
+    .stock-badge.unlimited { background: #f0fdf4; color: var(--green); }
+    .stock-badge.low       { background: #fef2f2; color: var(--red); }
+    .stock-badge.ok        { background: #eff6ff; color: var(--blue); }
+    .inactive-overlay { opacity: .45; }
+
+    .card-footer {
+      padding: 12px 16px; border-top: 1px solid var(--border);
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+    .btn-sm {
+      height: 32px; padding: 0 14px; border-radius: 8px;
+      font-family: 'Inter', sans-serif; font-size: .78rem; font-weight: 600;
+      cursor: pointer; border: none; transition: opacity .15s;
+    }
+    .btn-sm:hover { opacity: .85; }
+    .btn-edit   { background: var(--navy); color: #fff; }
+    .btn-order  { background: linear-gradient(135deg,var(--gold),var(--gold-light)); color: var(--navy); }
+    .btn-toggle { background: #f4f5fb; color: var(--text); border: 1px solid var(--border); }
+    .btn-del    { background: #fef2f2; color: var(--red); border: 1px solid #fecaca; margin-left: auto; }
+
+    /* ── Empty state ── */
+    .empty-state { text-align: center; padding: 80px 20px; color: #bbb; font-size: .9rem; grid-column: 1/-1; }
+    .empty-icon  { font-size: 3rem; margin-bottom: 12px; }
+
+    /* ── Modal ── */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(13,13,43,.55);
+      backdrop-filter: blur(3px); z-index: 2000;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px; opacity: 0; pointer-events: none;
+      transition: opacity .2s;
+    }
+    .modal-backdrop.open { opacity: 1; pointer-events: auto; }
+    .modal {
+      background: #fff; border-radius: 20px;
+      width: 100%; max-width: 560px; max-height: 90vh;
+      overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      transform: translateY(20px) scale(.97);
+      transition: transform .25s ease;
+    }
+    .modal-backdrop.open .modal { transform: translateY(0) scale(1); }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 22px 24px 16px; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: #fff; z-index: 1;
+    }
+    .modal-title { font-size: 1.1rem; font-weight: 800; color: var(--navy); }
+    .modal-close { font-size: 1.3rem; cursor: pointer; color: var(--gray); line-height: 1; padding: 4px 8px; border-radius: 6px; border: none; background: none; }
+    .modal-close:hover { background: #f4f5fb; }
+    .modal-body { padding: 20px 24px; }
+    .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: .78rem; font-weight: 600; color: var(--text); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .4px; }
+    .form-label span.req { color: var(--red); margin-left: 2px; }
+    .form-control {
+      width: 100%; height: 40px; border: 1px solid var(--border);
+      border-radius: 8px; padding: 0 12px;
+      font-family: 'Inter', sans-serif; font-size: .84rem; color: var(--text); outline: none;
+      transition: border-color .15s;
+    }
+    .form-control:focus { border-color: var(--gold); }
+    textarea.form-control { height: auto; padding: 10px 12px; resize: vertical; min-height: 72px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-hint { font-size: .72rem; color: var(--gray); margin-top: 4px; }
+    .form-check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .form-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--gold); cursor: pointer; }
+    .form-check-label { font-size: .84rem; color: var(--text); }
+    .form-error { font-size: .75rem; color: var(--red); margin-top: 4px; display: none; }
+
+    .btn-cancel { height: 40px; padding: 0 20px; background: #f4f5fb; color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-family: 'Inter', sans-serif; font-size: .84rem; font-weight: 600; cursor: pointer; }
+    .btn-cancel:hover { background: #eaebf5; }
+    .btn-save { height: 40px; padding: 0 24px; background: linear-gradient(135deg,var(--navy),#14532d); color: #fff; border: none; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: .84rem; font-weight: 600; cursor: pointer; }
+    .btn-save:hover { opacity: .88; }
+    .btn-save:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-danger { height: 40px; padding: 0 20px; background: var(--red); color: #fff; border: none; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: .84rem; font-weight: 600; cursor: pointer; }
+    .btn-danger:hover { opacity: .88; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      padding: 14px 20px; border-radius: 12px; font-size: .85rem; font-weight: 600;
+      box-shadow: 0 8px 24px rgba(0,0,0,.15); color: #fff;
+      transform: translateY(20px); opacity: 0;
+      transition: all .3s ease; pointer-events: none;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { background: var(--green); }
+    .toast.error   { background: var(--red); }
+
+    /* Loading spinner */
+    .spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
+
+    /* Confirm modal */
+    .confirm-msg { font-size: .9rem; color: var(--text); line-height: 1.5; }
+
+    @media (max-width: 768px) {
+      .summary-row { grid-template-columns: repeat(2,1fr); }
+      .page-container { padding: 24px 16px; }
+      .form-row { grid-template-columns: 1fr; }
+      .products-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 480px) {
+      .summary-row { grid-template-columns: 1fr; }
+    }
+  </style>
+
+  <!-- Access Control -->
+  <script>
+    (function() {
+      var raw = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
+      if (!raw) { window.location.replace('login.html'); return; }
+      var user;
+      try { user = JSON.parse(raw); } catch(e) { window.location.replace('login.html'); return; }
+      if (!user || !user.name || !user.username || !user.role) { window.location.replace('login.html'); return; }
+      if (!['head_account','admin'].includes(user.role)) {
+        window.location.replace('dashboard.html'); return;
+      }
+      sessionStorage.setItem('fawz_user', raw);
+    })();
+  </script>
+</head>
+<body>
+
+<div id="navbar-placeholder"></div>
+<script src="navbar.js?v=3"></script>
+
+<div class="page-container">
+  <div class="page-header">
+    <div>
+      <div class="page-title">🛍️ Katalog Produk</div>
+      <div class="page-subtitle">Kelola produk yang dapat dibeli nasabah dengan uang, Point, atau kombinasi keduanya</div>
+      <div class="title-underline"></div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <a href="product-order.html" class="btn-primary" style="background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--navy);">
+        🛒 Order Produk
+      </a>
+      <button class="btn-primary" onclick="openAddModal()">
+        + Tambah Produk
+      </button>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary-row">
+    <div class="summary-box">
+      <div class="summary-val" id="sumTotal">0</div>
+      <div class="summary-label">Total Produk</div>
+    </div>
+    <div class="summary-box">
+      <div class="summary-val green" id="sumActive">0</div>
+      <div class="summary-label">Produk Aktif</div>
+    </div>
+    <div class="summary-box">
+      <div class="summary-val gold" id="sumOrders">0</div>
+      <div class="summary-label">Total Order</div>
+    </div>
+    <div class="summary-box">
+      <div class="summary-val purple" id="sumPointsUsed">0</div>
+      <div class="summary-label">Point Terpakai</div>
+    </div>
+  </div>
+
+  <!-- Filter -->
+  <div class="filter-bar">
+    <input type="text" id="searchInput" placeholder="Cari nama produk..." oninput="renderProducts()"/>
+    <select id="filterCategory" onchange="renderProducts()">
+      <option value="">Semua Kategori</option>
+      <option value="voucher">Voucher</option>
+      <option value="merchandise">Merchandise</option>
+      <option value="layanan">Layanan</option>
+      <option value="umum">Umum</option>
+    </select>
+    <select id="filterStatus" onchange="renderProducts()">
+      <option value="">Semua Status</option>
+      <option value="active">Aktif</option>
+      <option value="inactive">Nonaktif</option>
+    </select>
+    <div class="filter-spacer"></div>
+    <span id="filterCount" style="font-size:.78rem;color:var(--gray);"></span>
+  </div>
+
+  <!-- Products Grid -->
+  <div class="products-grid" id="productsGrid">
+    <div class="empty-state">
+      <div class="spinner" style="border-color:rgba(0,0,0,.1);border-top-color:var(--gold);width:32px;height:32px;margin:0 auto 12px;"></div>
+      <div>Memuat produk...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add/Edit Modal ── -->
+<div class="modal-backdrop" id="productModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Tambah Produk</div>
+      <button class="modal-close" onclick="closeModal('productModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editProductId"/>
+
+      <div class="form-group">
+        <label class="form-label">Nama Produk <span class="req">*</span></label>
+        <input type="text" id="fieldName" class="form-control" placeholder="Nama produk"/>
+        <div class="form-error" id="errName">Nama produk wajib diisi</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Deskripsi</label>
+        <textarea id="fieldDesc" class="form-control" placeholder="Deskripsi singkat produk (opsional)"></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Kategori</label>
+          <select id="fieldCategory" class="form-control">
+            <option value="umum">Umum</option>
+            <option value="voucher">Voucher</option>
+            <option value="merchandise">Merchandise</option>
+            <option value="layanan">Layanan</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Stok <span style="font-weight:400;color:var(--gray);">(-1 = tak terbatas)</span></label>
+          <input type="number" id="fieldStock" class="form-control" value="-1" min="-1" step="1"/>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Harga (Rp)</label>
+          <input type="number" id="fieldPriceIdr" class="form-control" placeholder="0" min="0" step="1000"/>
+          <div class="form-hint">0 = tidak bisa bayar pakai uang</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Harga (Point)</label>
+          <input type="number" id="fieldPricePoints" class="form-control" placeholder="0" min="0" step="1"/>
+          <div class="form-hint">0 = tidak bisa bayar pakai point</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">URL Gambar</label>
+        <input type="url" id="fieldImage" class="form-control" placeholder="https://..."/>
+        <div class="form-hint">Opsional. URL gambar produk.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-check">
+          <input type="checkbox" id="fieldAllowMixed"/>
+          <span class="form-check-label">Boleh kombinasi uang + point</span>
+        </label>
+        <div class="form-hint" style="margin-top:6px;">Jika dicentang, nasabah bisa bayar sebagian pakai uang dan sebagian pakai point.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-check">
+          <input type="checkbox" id="fieldIsActive" checked/>
+          <span class="form-check-label">Produk aktif (tampil di halaman order)</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('productModal')">Batal</button>
+      <button class="btn-save" id="saveBtn" onclick="saveProduct()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Confirm Delete Modal ── -->
+<div class="modal-backdrop" id="confirmModal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title">⚠️ Hapus Produk</div>
+      <button class="modal-close" onclick="closeModal('confirmModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="confirm-msg" id="confirmMsg">Yakin ingin menghapus produk ini? Tindakan tidak dapat dibatalkan.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('confirmModal')">Batal</button>
+      <button class="btn-danger" id="confirmDeleteBtn" onclick="executeDelete()">Hapus</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  /* ─── State ─── */
+  let products = [];
+  let orderStats = { total: 0, points_used: 0 };
+  let pendingDeleteId = null;
+
+  /* ─── Init ─── */
+  window.addEventListener('DOMContentLoaded', initPage);
+
+  async function initPage() {
+    await Promise.all([loadProducts(), loadOrderStats()]);
+  }
+
+  /* ─── Load products ─── */
+  async function loadProducts() {
+    try {
+      const { data, error } = await _sb
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      products = data || [];
+      renderSummary();
+      renderProducts();
+    } catch(e) {
+      console.error('loadProducts:', e);
+      showToast('Gagal memuat produk: ' + e.message, 'error');
+      document.getElementById('productsGrid').innerHTML =
+        '<div class="empty-state"><div class="empty-icon">⚠️</div>Gagal memuat produk</div>';
+    }
+  }
+
+  /* ─── Load order stats ─── */
+  async function loadOrderStats() {
+    try {
+      const { data, error } = await _sb
+        .from('product_orders')
+        .select('id, paid_points')
+        .eq('status', 'completed');
+      if (error) throw error;
+      const rows = data || [];
+      orderStats.total = rows.length;
+      orderStats.points_used = rows.reduce((s, r) => s + (parseInt(r.paid_points) || 0), 0);
+      document.getElementById('sumOrders').textContent = orderStats.total.toLocaleString('id-ID');
+      document.getElementById('sumPointsUsed').textContent = orderStats.points_used.toLocaleString('id-ID');
+    } catch(e) {
+      console.warn('loadOrderStats:', e);
+    }
+  }
+
+  /* ─── Summary ─── */
+  function renderSummary() {
+    document.getElementById('sumTotal').textContent  = products.length;
+    document.getElementById('sumActive').textContent = products.filter(p => p.is_active).length;
+  }
+
+  /* ─── Render grid ─── */
+  function renderProducts() {
+    const search   = (document.getElementById('searchInput').value || '').toLowerCase();
+    const catFilter = document.getElementById('filterCategory').value;
+    const stFilter  = document.getElementById('filterStatus').value;
+
+    let filtered = products.filter(p => {
+      const matchSearch  = !search || (p.name || '').toLowerCase().includes(search) || (p.description || '').toLowerCase().includes(search);
+      const matchCat     = !catFilter || p.category === catFilter;
+      const matchStatus  = !stFilter || (stFilter === 'active' ? p.is_active : !p.is_active);
+      return matchSearch && matchCat && matchStatus;
+    });
+
+    document.getElementById('filterCount').textContent = filtered.length + ' produk';
+
+    const grid = document.getElementById('productsGrid');
+    if (!filtered.length) {
+      grid.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div>Tidak ada produk ditemukan</div>';
+      return;
+    }
+
+    grid.innerHTML = filtered.map(p => productCardHTML(p)).join('');
+  }
+
+  function productCardHTML(p) {
+    const stockBadge = p.stock === -1
+      ? '<span class="stock-badge unlimited">∞ Unlimited</span>'
+      : p.stock <= 5
+        ? '<span class="stock-badge low">Stok: ' + p.stock + '</span>'
+        : '<span class="stock-badge ok">Stok: ' + p.stock + '</span>';
+
+    const imgBlock = p.image_url
+      ? '<div class="card-img"><img src="' + escHtml(p.image_url) + '" alt="' + escHtml(p.name) + '" onerror="this.parentElement.innerHTML=\'🛍️\'"/></div>'
+      : '<div class="card-img">🛍️</div>';
+
+    const priceIdrRow = p.price_idr > 0
+      ? '<div class="price-row"><span class="price-icon">💵</span><span class="price-money">' + formatRp(p.price_idr) + '</span></div>'
+      : '<div class="price-row price-na">💵 Tidak tersedia (uang)</div>';
+
+    const pricePtsRow = p.price_points > 0
+      ? '<div class="price-row"><span class="price-icon">⭐</span><span class="price-points">' + p.price_points.toLocaleString('id-ID') + ' Point</span></div>'
+      : '<div class="price-row price-na">⭐ Tidak tersedia (point)</div>';
+
+    const mixedBadge = p.allow_mixed
+      ? '<div class="mixed-badge">🔀 Bisa kombinasi uang + point</div>'
+      : '';
+
+    const inactiveClass = p.is_active ? '' : 'inactive-overlay';
+    const toggleLabel   = p.is_active ? '🔴 Nonaktifkan' : '🟢 Aktifkan';
+
+    return `
+      <div class="product-card" id="card-${p.id}">
+        ${imgBlock}
+        <div class="card-body ${inactiveClass}">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span class="card-category">${escHtml(p.category || 'umum')}</span>
+            ${!p.is_active ? '<span style="font-size:.68rem;background:#fef2f2;color:var(--red);padding:2px 8px;border-radius:20px;font-weight:600;">Nonaktif</span>' : ''}
+          </div>
+          <div class="card-name">${escHtml(p.name)}</div>
+          <div class="card-desc">${escHtml(p.description || '—')}</div>
+          <div class="card-pricing">
+            ${priceIdrRow}
+            ${pricePtsRow}
+            ${mixedBadge}
+          </div>
+          <div class="card-meta">
+            <span style="font-size:.72rem;color:var(--gray);">Dibuat ${formatDate(p.created_at)}</span>
+            ${stockBadge}
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn-sm btn-edit"   onclick="openEditModal('${p.id}')">✏️ Edit</button>
+          <button class="btn-sm btn-order"  onclick="goOrder('${p.id}')">🛒 Order</button>
+          <button class="btn-sm btn-toggle" onclick="toggleActive('${p.id}', ${p.is_active})">${toggleLabel}</button>
+          <button class="btn-sm btn-del"    onclick="confirmDelete('${p.id}', '${escHtml(p.name).replace(/'/g,"\\'")}')">🗑️</button>
+        </div>
+      </div>`;
+  }
+
+  /* ─── Open Add Modal ─── */
+  function openAddModal() {
+    document.getElementById('modalTitle').textContent = '+ Tambah Produk';
+    document.getElementById('editProductId').value   = '';
+    document.getElementById('fieldName').value       = '';
+    document.getElementById('fieldDesc').value       = '';
+    document.getElementById('fieldCategory').value  = 'umum';
+    document.getElementById('fieldStock').value     = '-1';
+    document.getElementById('fieldPriceIdr').value   = '';
+    document.getElementById('fieldPricePoints').value= '';
+    document.getElementById('fieldImage').value      = '';
+    document.getElementById('fieldAllowMixed').checked = false;
+    document.getElementById('fieldIsActive').checked   = true;
+    document.getElementById('errName').style.display   = 'none';
+    openModal('productModal');
+  }
+
+  /* ─── Open Edit Modal ─── */
+  function openEditModal(id) {
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('modalTitle').textContent = '✏️ Edit Produk';
+    document.getElementById('editProductId').value   = p.id;
+    document.getElementById('fieldName').value       = p.name || '';
+    document.getElementById('fieldDesc').value       = p.description || '';
+    document.getElementById('fieldCategory').value  = p.category || 'umum';
+    document.getElementById('fieldStock').value     = p.stock != null ? p.stock : -1;
+    document.getElementById('fieldPriceIdr').value   = p.price_idr || '';
+    document.getElementById('fieldPricePoints').value= p.price_points || '';
+    document.getElementById('fieldImage').value      = p.image_url || '';
+    document.getElementById('fieldAllowMixed').checked = !!p.allow_mixed;
+    document.getElementById('fieldIsActive').checked   = p.is_active !== false;
+    document.getElementById('errName').style.display   = 'none';
+    openModal('productModal');
+  }
+
+  /* ─── Save Product ─── */
+  async function saveProduct() {
+    const name = document.getElementById('fieldName').value.trim();
+    if (!name) {
+      document.getElementById('errName').style.display = 'block';
+      document.getElementById('fieldName').focus();
+      return;
+    }
+    document.getElementById('errName').style.display = 'none';
+
+    const id = document.getElementById('editProductId').value;
+
+    // Get current user
+    let createdBy = 'admin';
+    try {
+      const u = JSON.parse(sessionStorage.getItem('fawz_user'));
+      createdBy = u.username || u.name || 'admin';
+    } catch(e) {}
+
+    const payload = {
+      name,
+      description:    document.getElementById('fieldDesc').value.trim() || null,
+      category:       document.getElementById('fieldCategory').value,
+      stock:          parseInt(document.getElementById('fieldStock').value) || -1,
+      price_idr:      parseFloat(document.getElementById('fieldPriceIdr').value) || 0,
+      price_points:   parseInt(document.getElementById('fieldPricePoints').value) || 0,
+      image_url:      document.getElementById('fieldImage').value.trim() || null,
+      allow_mixed:    document.getElementById('fieldAllowMixed').checked,
+      is_active:      document.getElementById('fieldIsActive').checked,
+      updated_at:     new Date().toISOString()
+    };
+
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Menyimpan...';
+
+    try {
+      let error;
+      if (id) {
+        // UPDATE
+        const res = await _sb.from('products').update(payload).eq('id', id);
+        error = res.error;
+      } else {
+        // INSERT
+        payload.created_by = createdBy;
+        payload.created_at = new Date().toISOString();
+        const res = await _sb.from('products').insert(payload);
+        error = res.error;
+      }
+      if (error) throw error;
+
+      showToast(id ? 'Produk berhasil diperbarui ✅' : 'Produk berhasil ditambahkan ✅', 'success');
+      closeModal('productModal');
+      await loadProducts();
+    } catch(e) {
+      showToast('Gagal menyimpan: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Simpan';
+    }
+  }
+
+  /* ─── Toggle active ─── */
+  async function toggleActive(id, currentActive) {
+    try {
+      const { error } = await _sb
+        .from('products')
+        .update({ is_active: !currentActive, updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+      showToast(currentActive ? 'Produk dinonaktifkan' : 'Produk diaktifkan ✅', 'success');
+      await loadProducts();
+    } catch(e) {
+      showToast('Gagal: ' + e.message, 'error');
+    }
+  }
+
+  /* ─── Delete ─── */
+  function confirmDelete(id, name) {
+    pendingDeleteId = id;
+    document.getElementById('confirmMsg').textContent =
+      'Yakin ingin menghapus produk "' + name + '"? Riwayat order akan tetap ada.';
+    openModal('confirmModal');
+  }
+
+  async function executeDelete() {
+    if (!pendingDeleteId) return;
+    const btn = document.getElementById('confirmDeleteBtn');
+    btn.disabled = true;
+    btn.textContent = 'Menghapus...';
+    try {
+      const { error } = await _sb.from('products').delete().eq('id', pendingDeleteId);
+      if (error) throw error;
+      showToast('Produk berhasil dihapus', 'success');
+      closeModal('confirmModal');
+      await loadProducts();
+    } catch(e) {
+      showToast('Gagal menghapus: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Hapus';
+      pendingDeleteId = null;
+    }
+  }
+
+  /* ─── Go to order page ─── */
+  function goOrder(id) {
+    window.location.href = 'product-order.html?product=' + id;
+  }
+
+  /* ─── Modal helpers ─── */
+  function openModal(id)  { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+  // Close on backdrop click
+  document.addEventListener('click', function(e) {
+    ['productModal','confirmModal'].forEach(function(id) {
+      const el = document.getElementById(id);
+      if (e.target === el) closeModal(id);
+    });
+  });
+
+  /* ─── Toast ─── */
+  let _toastTimer;
+  function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className   = 'toast ' + (type || 'success') + ' show';
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => { t.className = 'toast'; }, 3500);
+  }
+
+  /* ─── Helpers ─── */
+  function formatRp(n) { return 'Rp ' + (n || 0).toLocaleString('id-ID'); }
+  function formatDate(ts) {
+    if (!ts) return '—';
+    try { return new Date(ts).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }); }
+    catch(e) { return ts; }
+  }
+  function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>

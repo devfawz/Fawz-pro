@@ -4,7 +4,7 @@
   <script src="config.js"></script>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Fawz Pro | Profit Ambassador</title>
+  <title>Sales Petik Profit | Profit Ambassador</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -28,7 +28,7 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --navy: #0d0d2b; --navy2: #16163a; --gold: #f5a623; --gold2: #ffc857;
+      --navy: #1b4332; --navy2: #1b4332; --gold: #f5a623; --gold2: #ffd43b;
       --bg: #f4f5fb; --white: #fff; --nav-h: 68px; --border: #e0e0ef;
       --text: #1a1a3a; --gray: #888; --green: #10b981; --red: #ef4444;
       --shadow-sm: 0 1px 4px rgba(13,13,43,0.07);
@@ -838,7 +838,7 @@
         </div>` : '';
 
       const influencerTagHtml = r.influencer
-        ? `<span class="tag" style="background:#f3f0ff;color:#7c3aed;border-color:#ddd6fe;">👤 ${_esc(r.influencer)}</span>`
+        ? `<span class="tag" style="background:#f3f0ff;color:#15803d;border-color:#ddd6fe;">👤 ${_esc(r.influencer)}</span>`
         : '';
 
 
@@ -914,7 +914,7 @@
     new QRCode(wrap, {
       text: url,
       width: 200, height: 200,
-      colorDark: '#0d0d2b', colorLight: '#ffffff',
+      colorDark: '#1b4332', colorLight: '#ffffff',
       correctLevel: QRCode.CorrectLevel.H
     });
     console.log('[QR] QR generated successfully');
@@ -1424,7 +1424,7 @@
       const code     = _esc(r.client_code || '—');
       const nikMask  = r.nik ? _esc(r.nik) : '—';
       const noRdn    = _esc(r.no_rdn || '—');
-      const refCode  = r.referral_code ? `<span style="font-family:monospace;color:#7c3aed;font-weight:700;">${_esc(r.referral_code)}</span>` : '—';
+      const refCode  = r.referral_code ? `<span style="font-family:monospace;color:#15803d;font-weight:700;">${_esc(r.referral_code)}</span>` : '—';
       const signVal  = r.agreement_signature ? `✍️ ${_esc(r.agreement_signature)}` : '—';
       const regType  = r.status === 'sudah_terdaftar' ? 'Sudah punya akun' : 'Belum punya akun';
       const safeId   = _esc(String(r.id));
@@ -1469,7 +1469,7 @@
       `;
 
       const initials2 = (r.nama||'?').replace(/[^A-Za-z ]/g,'').trim().split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase()||'?';
-      const influencerVal = r.influencer_code ? `<span style="font-family:monospace;color:#7c3aed;font-weight:700;">${_esc(r.influencer_code)}</span>` : '<span style="color:#ccc;">—</span>';
+      const influencerVal = r.influencer_code ? `<span style="font-family:monospace;color:#15803d;font-weight:700;">${_esc(r.influencer_code)}</span>` : '<span style="color:#ccc;">—</span>';
       const signRow = r.agreement_signature ? `<div style="font-size:0.72rem;color:#555;margin-top:3px;">✍️ <em>${_esc(r.agreement_signature)}</em></div>` : '';
 
       return `<div class="reg-card" id="regcard-${safeId}">

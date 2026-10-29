@@ -4,7 +4,7 @@
   <script src="config.js"></script>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Fawz Pro | Fawz Point</title>
+  <title>Sales Petik Profit | Point</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -18,9 +18,9 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --navy: #0d0d2b; --gold: #f5a623; --gold-light: #ffc857;
+      --navy: #1b4332; --gold: #f5a623; --gold-light: #ffd43b;
       --bg: #f4f5fb; --white: #fff; --border: #e0e0ef; --text: #1a1a3a; --gray: #888;
-      --nav-h: 68px; --green: #27ae60; --purple: #7c3aed;
+      --nav-h: 68px; --green: #27ae60; --purple: #15803d;
     }
     body { font-family: 'Inter', sans-serif; background: var(--bg); min-height: 100vh; padding-top: var(--nav-h); color: var(--text); }
 
@@ -34,7 +34,7 @@
 
     /* Info Banner */
     .info-banner {
-      background: linear-gradient(135deg, var(--navy), #1e1252);
+      background: linear-gradient(135deg, var(--navy), #14532d);
       border-radius: 16px; padding: 24px 32px; margin-bottom: 28px;
       display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
       animation: fadeUp 0.4s 0.05s ease both;
@@ -189,7 +189,7 @@
 <div class="page-container">
   <div class="page-header">
     <div>
-      <div class="page-title">Fawz Point</div>
+      <div class="page-title">Point</div>
       <div class="page-subtitle">Leaderboard nasabah berdasarkan total volume transaksi saham keseluruhan</div>
       <div class="title-underline"></div>
     </div>
@@ -199,7 +199,7 @@
   <div class="info-banner">
     <div class="info-icon"></div>
     <div class="info-text">
-      <h3>Sistem Fawz Point</h3>
+      <h3>Sistem Point</h3>
       <p>Setiap <span class="info-highlight">Rp 10.000.000</span> volume transaksi saham = <span class="info-highlight">1 Point</span>. Point dihitung otomatis dari total volume transaksi saham keseluruhan.</p>
     </div>
   </div>
@@ -424,6 +424,48 @@
   }
 
   /**
+   * Persist the calculated point balances into the fawz_points table in Supabase.
+   * Upserts one row per client (keyed by client_id) with the latest
+   * volume, earned, redeemed and available points.
+   * Fails silently (logs a warning) so it never blocks rendering — e.g. if the
+   * table has not been created yet or RLS blocks the write.
+   * @param {Array} leaderboard - Leaderboard entries produced by buildLeaderboard()
+   */
+  async function persistPoints(leaderboard) {
+    if (!leaderboard || !leaderboard.length) return;
+
+    const rows = leaderboard.map(function(d) {
+      return {
+        client_id: d.client_id,
+        client_name: d.client_name,
+        email: d.email || null,
+        total_volume: d.volume,
+        earned_points: d.earnedPoints,
+        redeemed_points: d.redeemedPoints,
+        available_points: d.availablePoints,
+        updated_at: new Date().toISOString()
+      };
+    });
+
+    // Upsert in chunks to stay well under request-size limits.
+    const CHUNK = 500;
+    try {
+      for (var i = 0; i < rows.length; i += CHUNK) {
+        var chunk = rows.slice(i, i + CHUNK);
+        var res = await _sb
+          .from('fawz_points')
+          .upsert(chunk, { onConflict: 'client_id' });
+        if (res.error) {
+          console.warn('persistPoints upsert error (table may not exist yet):', res.error.message);
+          return; // stop early on error, don't spam warnings
+        }
+      }
+    } catch (e) {
+      console.warn('persistPoints failed:', e);
+    }
+  }
+
+  /**
    * Load and render redemption history.
    * Requirements: 9.7 - Display redemption history sorted by most recent first
    * Fetches all records from point_redemptions table ordered by redemption_date descending.
@@ -536,8 +578,31 @@
 
       redemptionsData = redemptions;
 
+      // Build a client_id -> email map from the customers table so we can
+      // persist the email alongside each point balance.
+      let emailMap = {};
+      try {
+        const custs = await fetchAllRows('customers', 'client_id, email');
+        (custs || []).forEach(function(c) {
+          if (c.client_id) emailMap[c.client_id] = c.email || null;
+        });
+      } catch(e) { console.warn('customers email lookup failed:', e); }
+
       // Build leaderboard from all transactions and redemptions
       pointsData = buildLeaderboard(data, redemptionsData);
+
+      // Attach email (matched by client_id) to each entry.
+      pointsData.forEach(function(d) {
+        d.email = emailMap[d.client_id] || null;
+      });
+
+      // NOTE: Sinkronisasi ke tabel fawz_points kini ditangani otomatis
+      // oleh database trigger (lihat fawz_points_auto_sync.sql), sehingga
+      // selalu sinkron di sisi server tanpa bergantung anon key / RLS.
+      // Pemanggilan persistPoints() dari halaman dinonaktifkan agar tidak
+      // menimpa data yang dikelola trigger. Fungsinya sengaja dibiarkan
+      // ada untuk referensi, tapi tidak dipanggil.
+      // persistPoints(pointsData);
 
       renderSummary();
       renderLeaderboard();
@@ -767,6 +832,7 @@
       buildLeaderboard: buildLeaderboard,
       validateRedemption: validateRedemption,
       processRedemption: processRedemption,
+      persistPoints: persistPoints,
       loadRedemptionHistory: loadRedemptionHistory,
       renderRedemptionHistory: renderRedemptionHistory
     };
