@@ -980,11 +980,11 @@ tbody td { padding: 10px 14px; color: var(--text); white-space: nowrap; }
 <div class="toast" id="toast"></div>
 
 <script>
-/* ===== API (PHP backend via config.js window._api) ===== */
+/* ===== Supabase init guard ===== */
 function waitForDb(cb, tries) {
   tries = tries || 0;
-  if (window._api) { cb(); return; }
-  if (tries > 100) { setStatus(false); toastErr('API gagal dimuat'); document.getElementById('loading-overlay').style.display='none'; return; }
+  if (window._supabase) { cb(); return; }
+  if (tries > 100) { setStatus(false); toastErr('Supabase belum siap'); document.getElementById('loading-overlay').style.display='none'; return; }
   setTimeout(function(){ waitForDb(cb, tries+1); }, 100);
 }
 
@@ -998,15 +998,20 @@ let clients = [], orders = [], dividends = [], importBuffer = [];
 })();
 
 async function loadAll() {
+  if (!window._supabase) { toastErr('Supabase belum siap'); return; }
   try {
-    const [n, t, d, os] = await Promise.all([
-      _api.get('dealer.php', { table: 'nasabah' }),
-      _api.get('dealer.php', { table: 'transaksi' }),
-      _api.get('dealer.php', { table: 'dividen' }),
-      _api.get('dealer.php', { table: 'outstanding' })
+    const [rn, rt, rd] = await Promise.all([
+      window._supabase.from('dealer_nasabah').select('*').order('nama', { ascending: true }),
+      window._supabase.from('dealer_transaksi').select('*').order('tgl', { ascending: false }),
+      window._supabase.from('dealer_dividen').select('*').order('tgl', { ascending: false })
     ]);
-    clients = n.data || []; orders = t.data || []; dividends = d.data || [];
-    osRows  = os.data || [];
+    if (rn.error) throw rn.error;
+    if (rt.error) throw rt.error;
+    if (rd.error) throw rd.error;
+    clients   = rn.data || [];
+    orders    = rt.data || [];
+    dividends = rd.data || [];
+    osRows    = [];
     setStatus(true);
     fillClientSelects(); renderTable(); renderClientList(); dvRenderHistory();
   } catch(err) {
@@ -1050,7 +1055,7 @@ function switchTab(name, btn) {
   btn.classList.add('active');
   if (name === 'data') renderTable();
   if (name === 'konfirmasi') { fillClientSelects(); generateMsg(); }
-  if (name === 'outstanding') { loadOsData().then(renderOsTable); }
+  if (name === 'outstanding') { loadOsData().then(() => { renderOsTable(); _osUnavailable(); }); }
   if (name === 'dividen') fillClientSelects();
 }
 
@@ -1146,8 +1151,14 @@ async function addClient() {
   const nama = document.getElementById('cl-nama').value.trim();
   if (!id || !nama) return toast('Isi Client ID dan Nama!');
   if (clients.find(c => c.id === id)) return toast('Client ID sudah ada!');
+  if (!window._supabase) { toastErr('Supabase belum siap'); return; }
   try {
-    await _api.post('dealer.php', { id, nama }, { table: 'nasabah' });
+    const { data, error } = await window._supabase
+      .from('dealer_nasabah')
+      .insert({ id, nama })
+      .select()
+      .single();
+    if (error) throw error;
   } catch(err) { console.error(err); return toastErr('Gagal menyimpan nasabah'); }
   clients.push({ id, nama });
   document.getElementById('cl-id').value = '';
@@ -1158,8 +1169,13 @@ async function addClient() {
 
 async function deleteClient(id) {
   if (!confirm('Hapus nasabah ini? Semua transaksinya juga akan terhapus.')) return;
+  if (!window._supabase) { toastErr('Supabase belum siap'); return; }
   try {
-    await _api.delete('dealer.php', { table: 'nasabah', id });
+    const { error } = await window._supabase
+      .from('dealer_nasabah')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
   } catch(err) { console.error(err); return toastErr('Gagal menghapus nasabah'); }
   clients = clients.filter(c => c.id !== id);
   orders  = orders.filter(o => o.cid !== id);
@@ -1230,8 +1246,12 @@ function showImportPreview() {
 async function confirmImport() {
   const toInsert = importBuffer.filter(r => !clients.find(c => c.id === r.id));
   if (!toInsert.length) { cancelImport(); return toast('Tidak ada nasabah baru untuk diimport'); }
+  if (!window._supabase) { toastErr('Supabase belum siap'); return; }
   try {
-    await _api.post('dealer.php', toInsert, { table: 'nasabah', bulk: 1 });
+    const { error } = await window._supabase
+      .from('dealer_nasabah')
+      .insert(toInsert.map(r => ({ id: r.id, nama: r.nama })));
+    if (error) throw error;
   } catch(err) { console.error(err); return toastErr('Gagal import ke database'); }
   clients.push(...toInsert);
   fillClientSelects(); renderClientList(); cancelImport();
@@ -1288,8 +1308,12 @@ async function saveOrder() {
   const rec   = { id, tgl, cid, nama, kode, trx, qty, harga, total };
   const btn   = document.getElementById('btn-save-order');
   btn.disabled = true;
+  if (!window._supabase) { btn.disabled = false; toastErr('Supabase belum siap'); return; }
   try {
-    await _api.post('dealer.php', rec, { table: 'transaksi' });
+    const { error } = await window._supabase
+      .from('dealer_transaksi')
+      .insert({ id, tgl, cid, nama, kode, trx, qty, harga, total });
+    if (error) throw error;
   } catch(err) { btn.disabled = false; console.error(err); return toastErr('Gagal menyimpan order'); }
   btn.disabled = false;
   orders.unshift(rec); resetForm(); renderTable();
@@ -1328,8 +1352,13 @@ async function deleteSelected() {
   const ids = [...document.querySelectorAll('.row-chk:checked')].map(c=>Number(c.dataset.id));
   if (!ids.length) return toast('Pilih baris yang ingin dihapus!');
   if (!confirm(`Hapus ${ids.length} transaksi?`)) return;
+  if (!window._supabase) { toastErr('Supabase belum siap'); return; }
   try {
-    await _api.delete('dealer.php', { table: 'transaksi', ids: ids.join(',') });
+    const { error } = await window._supabase
+      .from('dealer_transaksi')
+      .delete()
+      .in('id', ids);
+    if (error) throw error;
   } catch(err) { console.error(err); return toastErr('Gagal menghapus transaksi'); }
   orders = orders.filter(o=>!ids.includes(o.id)); renderTable();
   toast(`${ids.length} data dihapus`);
@@ -1395,8 +1424,13 @@ async function updateOrder() {
 
   const btn = document.getElementById('btn-update-order');
   btn.disabled = true;
+  if (!window._supabase) { btn.disabled = false; toastErr('Supabase belum siap'); return; }
   try {
-    await _api.put('dealer.php', rec, { table: 'transaksi', id: editingId });
+    const { error } = await window._supabase
+      .from('dealer_transaksi')
+      .update({ tgl, cid, nama, kode, trx, qty, harga, total })
+      .eq('id', editingId);
+    if (error) throw error;
   } catch(err) { btn.disabled = false; console.error(err); return toastErr('Gagal memperbarui transaksi'); }
   btn.disabled = false;
 
@@ -1479,10 +1513,14 @@ function toastErr(msg) { toast(msg, true); }
 let osRows = [];
 
 async function loadOsData() {
-  try {
-    const res = await _api.get('dealer.php', { table: 'outstanding' });
-    osRows = res.data || [];
-  } catch(e) { console.error('loadOsData', e); osRows = []; }
+  // dealer_outstanding table is not in schema — show graceful fallback
+  osRows = [];
+}
+
+function _osUnavailable() {
+  const tbody = document.getElementById('os-tbody');
+  if (tbody) tbody.innerHTML = `<tr><td colspan="10"><div class="empty">Fitur outstanding belum tersedia.</div></td></tr>`;
+  toast('Fitur outstanding belum tersedia.');
 }
 
 function getOsRow(cid) {
@@ -1490,12 +1528,8 @@ function getOsRow(cid) {
 }
 
 async function osApiPut(cid, fields) {
-  // update via PUT, update lokal state seketika
-  try {
-    await _api.put('dealer.php', fields, { table: 'outstanding', id: cid });
-    const r = getOsRow(cid);
-    if (r) Object.assign(r, fields);
-  } catch(e) { toastErr('Gagal menyimpan ke database'); console.error(e); }
+  // outstanding table not available
+  _osUnavailable();
 }
 
 function renderOsTable() {
@@ -1639,42 +1673,15 @@ function recalcLimit(cid) {
 }
 
 async function osDeleteRow(cid) {
-  if (!confirm(`Hapus ${cid} dari daftar Outstanding?`)) return;
-  try {
-    await _api.delete('dealer.php', { table: 'outstanding', id: cid });
-    osRows = osRows.filter(r => r.id !== cid);
-    renderOsTable();
-    toast(`${cid} dihapus dari Outstanding`);
-  } catch(e) { console.error(e); toastErr('Gagal menghapus'); }
+  _osUnavailable();
 }
 
 async function osAddClient() {
-  const id    = document.getElementById('os-add-id').value.trim().toUpperCase();
-  const nama  = document.getElementById('os-add-nama').value.trim();
-  const limit = parseFloat(String(document.getElementById('os-add-limit').value).replace(/[^0-9]/g,'')) || 0;
-  if (!id) return toast('Client ID wajib diisi');
-  if (osRows.find(r => r.id === id)) return toast('Client ID sudah ada di daftar');
-  try {
-    await _api.post('dealer.php', { id, nama, limit_diajukan: limit }, { table: 'outstanding' });
-    osRows.push({ id, nama: nama||id, limit_diajukan: limit, asset: 0, outstanding: 0, tgl: null, status: 'Kosong', porto_list: '' });
-    document.getElementById('os-add-id').value = '';
-    document.getElementById('os-add-nama').value = '';
-    document.getElementById('os-add-limit').value = '';
-    renderOsTable();
-    toast(`${id} berhasil ditambahkan`);
-  } catch(e) { console.error(e); toastErr('Gagal menambahkan client'); }
+  _osUnavailable();
 }
 
 async function resetOsData() {
-  if (!confirm('Reset semua nilai Asset, Outstanding, Tanggal, dan Status ke 0/kosong? Data nasabah dan limit tetap ada.')) return;
-  try {
-    await Promise.all(osRows.map(r =>
-      _api.put('dealer.php', { asset: 0, outstanding: 0, tgl: null, status: 'Kosong' }, { table: 'outstanding', id: r.id })
-    ));
-    osRows.forEach(r => { r.asset=0; r.outstanding=0; r.tgl=null; r.status='Kosong'; });
-    renderOsTable();
-    toast('Data outstanding direset');
-  } catch(e) { console.error(e); toastErr('Gagal reset'); }
+  _osUnavailable();
 }
 
 function generateOsReport() {
@@ -1930,8 +1937,12 @@ async function dvGenerate() {
 
   const btn = document.getElementById('btn-dv-generate');
   if (btn) btn.disabled = true;
+  if (!window._supabase) { if (btn) btn.disabled = false; toastErr('Supabase belum siap'); return; }
   try {
-    await _api.post('dealer.php', rec, { table: 'dividen' });
+    const { error } = await window._supabase
+      .from('dealer_dividen')
+      .insert({ id: rec.id, tgl: rec.tgl, cid: rec.cid, nama: rec.nama, stock: rec.stock, qty: rec.qty, div: rec.div, amt: rec.amt, txt: rec.txt });
+    if (error) throw error;
   } catch(err) { if (btn) btn.disabled = false; console.error(err); return toastErr('Gagal menyimpan dividen'); }
   if (btn) btn.disabled = false;
 
@@ -2004,8 +2015,13 @@ function dvCopyItem(id) {
 }
 
 async function dvDeleteItem(id) {
+  if (!window._supabase) { toastErr('Supabase belum siap'); return; }
   try {
-    await _api.delete('dealer.php', { table: 'dividen', id });
+    const { error } = await window._supabase
+      .from('dealer_dividen')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
   } catch(err) { console.error(err); return toastErr('Gagal menghapus dividen'); }
   dividends = dividends.filter(x => x.id !== id);
   dvRenderHistory();
@@ -2016,8 +2032,13 @@ async function dvClearAll() {
   if (!confirm('Hapus semua riwayat dividen?')) return;
   const ids = dividends.map(x => x.id);
   if (ids.length) {
+    if (!window._supabase) { toastErr('Supabase belum siap'); return; }
     try {
-      await _api.delete('dealer.php', { table: 'dividen', ids: ids.join(',') });
+      const { error } = await window._supabase
+        .from('dealer_dividen')
+        .delete()
+        .in('id', ids);
+      if (error) throw error;
     } catch(err) { console.error(err); return toastErr('Gagal menghapus riwayat'); }
   }
   dividends = [];
