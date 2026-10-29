@@ -1,5 +1,5 @@
 /* ============================================================
-   navbar.js — Fawz Pro Navbar Logic
+   navbar.js — Sales Petik Profit Navbar Logic
    Di-load via <script src="navbar.js"> di setiap halaman.
    Menghandle: session sync, user info, dropdown, active link.
    v2.5.0 — avatar ring notif
@@ -106,54 +106,11 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
     document.head.appendChild(style);
   })();
 
-  /* ── 0b. SUPABASE INIT — strict singleton, cegah multiple GoTrueClient ── */
+  /* ── 0b. API CLIENT GUARD — pastikan window._api sudah siap ── */
   (function() {
-    // Guard flag — kalau sudah pernah init dari navbar.js, skip total
-    if (window.__FAWZ_SB_INIT__) return;
-
-    // Sudah ada instance valid dari halaman → pakai, set flag, keluar
-    if (window._supabase && typeof window._supabase.from === 'function') {
-      window.__FAWZ_SB_INIT__ = true;
-      return;
-    }
-
-    // Cari instance dengan nama variabel lain yang mungkin dibuat halaman
-    const knownKeys = ['_sb', '_sbDash', '_sbClient', '_sbSales', '_sbBonds', '_sbAdmin'];
-    const found = knownKeys.find(k => window[k] && typeof window[k].from === 'function');
-    if (found) {
-      window._supabase = window[found];
-      window.__FAWZ_SB_INIT__ = true;
-      return;
-    }
-
-    // Belum ada sama sekali → buat SATU instance, set flag supaya tidak dibuat lagi
-    const SUPABASE_URL = (window.__FAWZ_CONFIG__ || {}).supabaseUrl || '';
-    const SUPABASE_KEY = (window.__FAWZ_CONFIG__ || {}).supabaseKey || '';
-    if (!SUPABASE_URL || !SUPABASE_KEY) { console.warn('Fawz: config.js belum dimuat'); return; }
-
-    const tryInit = () => {
-      if (window.__FAWZ_SB_INIT__) return; // sudah dibuat di antara retry
-      if (window.supabase && window.supabase.createClient) {
-        // Cek sekali lagi sebelum createClient
-        const found2 = knownKeys.find(k => window[k] && typeof window[k].from === 'function');
-        if (found2) {
-          window._supabase = window[found2];
-        } else {
-          window._supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        }
-        window.__FAWZ_SB_INIT__ = true;
-      } else {
-        setTimeout(tryInit, 300);
-      }
-    };
-
-    if (window.supabase) {
-      tryInit();
-    } else {
-      const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
-      s.onload = tryInit;
-      document.head.appendChild(s);
+    // config.js sudah inject window._api — tidak perlu Supabase SDK sama sekali
+    if (!window._api) {
+      console.warn('[Fawz navbar] window._api belum siap, menunggu config.js...');
     }
   })();
 
@@ -403,7 +360,7 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
     const allowedRoles = ['admin', 'treasury', 'head_account', 'sales', 'head_sales'];
     if (!allowedRoles.includes(user.role)) return;
 
-    waitForSupabase(() => {
+    waitForApi(() => {
       fetchPendingTasks(user);
       setInterval(() => fetchPendingTasks(user), 60000);
     });
@@ -437,73 +394,26 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
         }
       }
 
-      // Hitung unread replies — reply dari orang lain yang belum dibaca
-      let unreadReplies = 0;
-      try {
-        const replyReadKey = 'fawz_reply_read_' + (user.username || user.name || 'anon');
-        const replyLastRead = JSON.parse(localStorage.getItem(replyReadKey) || '{}');
+  /* ── 4b. TASK PENDING INDICATOR ── */
+  function initTaskIndicator(user) {
+    const allowedRoles = ['admin', 'treasury', 'head_account', 'sales', 'head_sales'];
+    if (!allowedRoles.includes(user.role)) return;
+    waitForApi(() => {
+      fetchPendingTasks(user);
+      setInterval(() => fetchPendingTasks(user), 60000);
+    });
+  }
 
-        // Ambil task yang relevan untuk user ini
-        let taskIds = [];
-        if (user.role === 'head_account') {
-          const { data: tasks } = await window._supabase
-            .from('job_tasks')
-            .select('id')
-            .neq('status', 'deleted');
-          taskIds = (tasks || []).map(t => t.id);
-        } else {
-          const { data: tAll } = await window._supabase
-            .from('job_tasks')
-            .select('id, assigned_to')
-            .eq('assigned_role', user.role);
-
-          taskIds = (tAll || [])
-            .filter(t => t.assigned_to === null || t.assigned_to === user.username)
-            .map(t => t.id);
-        }
-
-        if (taskIds.length > 0) {
-          const { data: replies } = await window._supabase
-            .from('job_task_replies')
-            .select('task_id, created_at, created_by')
-            .in('task_id', taskIds)
-            .neq('created_by', user.username)
-            .order('created_at', { ascending: false });
-
-          // Ambil reply terbaru per task, cek apakah sudah dibaca
-          const latestPerTask = {};
-          (replies || []).forEach(r => {
-            if (!latestPerTask[r.task_id]) latestPerTask[r.task_id] = r.created_at;
-          });
-
-          unreadReplies = Object.entries(latestPerTask).filter(([taskId, latestAt]) => {
-            const lastRead = replyLastRead[taskId];
-            if (!lastRead) return true;
-            return new Date(latestAt) > new Date(lastRead);
-          }).length;
-        }
-      } catch(e) { /* silent */ }
-
-      const totalCount = pendingCount + unreadReplies;
-
-      // Update badge di link Job Report
-      const badge = document.getElementById('jobReportBadge');
+  async function fetchPendingTasks(user) {
+    if (!window._api) return;
+    try {
+      const res = await window._api.get('jobs.php', { scope: 'pending_count' });
+      const pendingCount = res.data?.count || 0;
+      const badge    = document.getElementById('jobReportBadge');
       const mobBadge = document.getElementById('mobJobReportBadge');
-      const cnt = pendingCount || 0;
-
-      if (badge) {
-        badge.textContent = cnt > 99 ? '99+' : cnt;
-        badge.style.display = cnt > 0 ? 'inline-flex' : 'none';
-      }
-      if (mobBadge) {
-        mobBadge.textContent = cnt > 99 ? '99+' : cnt;
-        mobBadge.style.display = cnt > 0 ? 'inline-flex' : 'none';
-      }
-
-      // Update avatar ring + count
-      console.log('[Fawz] fetchPendingTasks result:', { pendingCount, unreadReplies, totalCount, role: user.role, username: user.username });
-      updateAvatarNotifRing(totalCount);
-
+      if (badge)    { badge.textContent = pendingCount > 99 ? '99+' : pendingCount; badge.style.display = pendingCount > 0 ? 'inline-flex' : 'none'; }
+      if (mobBadge) { mobBadge.textContent = pendingCount > 99 ? '99+' : pendingCount; mobBadge.style.display = pendingCount > 0 ? 'inline-flex' : 'none'; }
+      updateAvatarNotifRing(pendingCount);
     } catch(e) { /* silent */ }
   }
 
@@ -511,13 +421,7 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
   function updateAvatarNotifRing(count) {
     const wrapper = document.getElementById('avatarWrapper');
     const badge   = document.getElementById('avatarNotifCount');
-
-    // Jika elemen belum ada di DOM (navbar belum selesai di-inject), retry
-    if (!wrapper || !badge) {
-      setTimeout(() => updateAvatarNotifRing(count), 200);
-      return;
-    }
-
+    if (!wrapper || !badge) { setTimeout(() => updateAvatarNotifRing(count), 200); return; }
     if (count > 0) {
       wrapper.classList.add('has-notif');
       badge.textContent = count > 99 ? '99+' : count;
@@ -528,7 +432,6 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
     }
   }
 
-
   let _notifReadIds = [];
 
   function initNotifications(user) {
@@ -536,35 +439,29 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
     const bell = document.getElementById('notifBell');
     if (!bell) return;
     bell.style.display = 'flex';
-
-    // Load read IDs from localStorage
-    const stored = localStorage.getItem('fawz_notif_read_' + (user.username||user.name));
+    const stored = localStorage.getItem('fawz_notif_read_' + (user.username || user.name));
     _notifReadIds = stored ? JSON.parse(stored) : [];
-
-    // Tunggu _supabase siap, lalu fetch
-    waitForSupabase(() => {
+    waitForApi(() => {
       fetchPendingOrders(user);
       setInterval(() => fetchPendingOrders(user), 60000);
     });
   }
 
-  function waitForSupabase(cb, tries) {
+  function waitForApi(cb, tries) {
     tries = tries || 0;
-    if (window._supabase) { cb(); return; }
-    if (tries > 20) return; // max 10 detik
-    setTimeout(() => waitForSupabase(cb, tries + 1), 500);
+    if (window._api) { cb(); return; }
+    if (tries > 20) return;
+    setTimeout(() => waitForApi(cb, tries + 1), 300);
   }
 
   async function fetchPendingOrders(user) {
-    if (!window._supabase) return;
+    if (!window._api) return;
     try {
-      const { data, error } = await window._supabase
-        .from('bb_orders')
-        .select('id, seri, customer_name, sales_pic, nominal, created_at, category')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(20);
-      if (error || !data) return;
+      const res  = await window._api.get('bonds.php', { status: 'pending', per_page: 20 });
+      const data = res.data || [];      if (mobBadge) { mobBadge.textContent = pendingCount > 99 ? '99+' : pendingCount; mobBadge.style.display = pendingCount > 0 ? 'inline-flex' : 'none'; }
+      updateAvatarNotifRing(pendingCount);
+    } catch(e) { /* silent */ }
+  }
 
       const unreadCount = data.filter(o => !_notifReadIds.includes(o.id)).length;
 
@@ -716,6 +613,10 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
 
   /* ── 5. GLOBAL FUNCTIONS ── */
   window.doLogout = function () {
+    const raw2 = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
+    if (raw2 && window._api) {
+      try { window._api.post('auth.php?action=logout', {}); } catch(e) {}
+    }
     sessionStorage.removeItem('fawz_user');
     localStorage.removeItem('fawz_user_remember');
     window.location.href = 'login.html';
@@ -762,21 +663,17 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
     const allowedRoles = ['admin', 'head_account', 'head_sales'];
     if (!allowedRoles.includes(user.role)) return;
 
-    waitForSupabase(() => {
+    waitForApi(() => {
       checkPendingAmbassador();
-      setInterval(checkPendingAmbassador, 60000); // refresh tiap 1 menit
+      setInterval(checkPendingAmbassador, 60000);
     });
   }
 
   async function checkPendingAmbassador() {
-    if (!window._supabase) return;
+    if (!window._api) return;
     try {
-      const { count, error } = await window._supabase
-        .from('referral_registrations')
-        .select('*', { count: 'exact', head: true })
-        .or('confirmed_status.is.null,confirmed_status.eq.pending');
-
-      if (error) return;
+      const res   = await window._api.get('referral.php', { scope: 'registrations', status: 'pending', per_page: 1 });
+      const count = res.total || 0;
 
       const navPetikProfit = document.getElementById('navPetikProfit');
       // Cari dropdown-item Profit Ambassador di dalam navPetikProfit
@@ -830,57 +727,37 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
 
   /* ── 4c. INFLUENCER & REFERRAL MEMBERSHIP CHECK ── */
   function initMembershipCheck(user) {
-    waitForSupabase(() => {
+    waitForApi(() => {
       checkInfluencerStatus(user);
       checkReferralStatus(user);
     });
   }
 
   async function checkInfluencerStatus(user) {
-    if (!window._supabase) return;
+    if (!window._api) return;
     try {
-      // influencer_registrations tidak punya kolom "username".
-      // Cocokkan berdasarkan client_code / client_id yang dimiliki user.
       const clientCode = user.client_code || user.client_id || '';
-      if (!clientCode) return; // staff login biasa tidak punya client_code → skip
-
-      const { data, error } = await window._supabase
-        .from('influencer_registrations')
-        .select('id')
-        .eq('client_code', clientCode)
-        .limit(1);
-
-      if (error) { console.warn('[checkInfluencerStatus]', error.message || error); return; }
-      if (data && data.length > 0) {
-        // User is registered as influencer → show Dashboard
-        const link = document.getElementById('influencerMenuLink');
+      if (!clientCode) return;
+      const res = await window._api.get('influencer.php', { scope: 'registrations', q: clientCode });
+      if (res.data && res.data.length > 0) {
+        const link    = document.getElementById('influencerMenuLink');
         const mobLink = document.getElementById('mobInfluencerLink');
-        if (link) { link.href = 'dashboard-influencer.html'; link.innerHTML = '<span class="d-icon">📣</span> Dashboard'; }
+        if (link)    { link.href = 'dashboard-influencer.html'; link.innerHTML = '<span class="d-icon">📣</span> Dashboard'; }
         if (mobLink) { mobLink.href = 'dashboard-influencer.html'; mobLink.textContent = 'Dashboard'; }
       }
     } catch(e) { /* silent */ }
   }
 
   async function checkReferralStatus(user) {
-    if (!window._supabase) return;
+    if (!window._api) return;
     try {
-      // referral_agents tidak punya kolom "username".
-      // Cocokkan berdasarkan agent_code / client_id yang dimiliki user.
       const agentCode = user.agent_code || user.client_code || user.client_id || '';
-      if (!agentCode) return; // staff login biasa tidak punya kode → skip
-
-      const { data, error } = await window._supabase
-        .from('referral_agents')
-        .select('id')
-        .or(`agent_code.eq.${agentCode},client_id.eq.${agentCode}`)
-        .limit(1);
-
-      if (error) { console.warn('[checkReferralStatus]', error.message || error); return; }
-      if (data && data.length > 0) {
-        // User is registered as referral agent → show Dashboard
-        const link = document.getElementById('referralMenuLink');
+      if (!agentCode) return;
+      const res = await window._api.get('referral.php', { scope: 'agents', agent_code: agentCode });
+      if (res.data && res.data.length > 0) {
+        const link    = document.getElementById('referralMenuLink');
         const mobLink = document.getElementById('mobReferralLink');
-        if (link) { link.href = 'dashboard-referral.html'; link.innerHTML = '<span class="d-icon">🤝</span> Dashboard'; }
+        if (link)    { link.href = 'dashboard-referral.html'; link.innerHTML = '<span class="d-icon">🤝</span> Dashboard'; }
         if (mobLink) { mobLink.href = 'dashboard-referral.html'; mobLink.textContent = 'Dashboard'; }
       }
     } catch(e) { /* silent */ }

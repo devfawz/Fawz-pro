@@ -4,10 +4,9 @@
 <script src="config.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Fawz Pro | Dealer Report</title>
+<title>Sales Petik Profit | Dealer Report</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
 <!-- ── ACCESS GUARD: hanya role 'admin' ATAU username 'fawzheadaccount' ── -->
 <script>
@@ -836,20 +835,45 @@ tbody td { padding: 10px 14px; color: var(--text); white-space: nowrap; }
         <table class="os-table" id="os-table">
           <thead>
             <tr>
-              <th style="width:36px">#</th>
+              <th style="width:32px">#</th>
               <th>Client ID</th>
               <th>Nama</th>
               <th>Asset (Rp)</th>
               <th>Outstanding (Rp)</th>
               <th>Tgl Hari Kerja</th>
               <th>Limit Diajukan</th>
+              <th>Porto List</th>
               <th>Status</th>
+              <th style="width:36px"></th>
             </tr>
           </thead>
           <tbody id="os-tbody"></tbody>
         </table>
       </div>
-      <div class="btn-row">
+
+      <!-- Form tambah client baru -->
+      <div style="margin-top:16px;padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
+        <div style="font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px">
+          Tambah Client Outstanding
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div class="field" style="flex:0 0 110px">
+            <label>Client ID</label>
+            <input type="text" id="os-add-id" class="os-input-cell" style="text-transform:uppercase" placeholder="J0001N">
+          </div>
+          <div class="field" style="flex:1 1 160px">
+            <label>Nama</label>
+            <input type="text" id="os-add-nama" class="os-input-cell" placeholder="Nama nasabah">
+          </div>
+          <div class="field" style="flex:0 0 160px">
+            <label>Limit Diajukan (Rp)</label>
+            <input type="text" id="os-add-limit" class="os-input-cell" inputmode="numeric" placeholder="1.000.000.000">
+          </div>
+          <button class="btn btn-primary" style="height:36px;padding:0 16px" onclick="osAddClient()">+ Tambah</button>
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-top:12px">
         <button class="btn btn-primary" onclick="generateOsReport()">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="2"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="9" y2="9"/></svg>
           Generate Laporan
@@ -956,12 +980,11 @@ tbody td { padding: 10px 14px; color: var(--text); white-space: nowrap; }
 <div class="toast" id="toast"></div>
 
 <script>
-/* ===== SUPABASE (via config.js singleton) ===== */
-function getDb() { return window._supabase; }
+/* ===== API (PHP backend via config.js window._api) ===== */
 function waitForDb(cb, tries) {
   tries = tries || 0;
-  if (window._supabase) { cb(); return; }
-  if (tries > 100) { setStatus(false); toastErr('Supabase gagal dimuat'); document.getElementById('loading-overlay').style.display='none'; return; }
+  if (window._api) { cb(); return; }
+  if (tries > 100) { setStatus(false); toastErr('API gagal dimuat'); document.getElementById('loading-overlay').style.display='none'; return; }
   setTimeout(function(){ waitForDb(cb, tries+1); }, 100);
 }
 
@@ -975,15 +998,15 @@ let clients = [], orders = [], dividends = [], importBuffer = [];
 })();
 
 async function loadAll() {
-  const db = getDb();
   try {
-    const [{ data: n, error: e1 }, { data: t, error: e2 }, { data: d, error: e3 }] = await Promise.all([
-      db.from('dealer_nasabah').select('*').order('id'),
-      db.from('dealer_transaksi').select('*').order('tgl', { ascending: false }),
-      db.from('dealer_dividen').select('*').order('id', { ascending: false })
+    const [n, t, d, os] = await Promise.all([
+      _api.get('dealer.php', { table: 'nasabah' }),
+      _api.get('dealer.php', { table: 'transaksi' }),
+      _api.get('dealer.php', { table: 'dividen' }),
+      _api.get('dealer.php', { table: 'outstanding' })
     ]);
-    if (e1 || e2 || e3) throw e1 || e2 || e3;
-    clients = n || []; orders = t || []; dividends = d || [];
+    clients = n.data || []; orders = t.data || []; dividends = d.data || [];
+    osRows  = os.data || [];
     setStatus(true);
     fillClientSelects(); renderTable(); renderClientList(); dvRenderHistory();
   } catch(err) {
@@ -1027,7 +1050,7 @@ function switchTab(name, btn) {
   btn.classList.add('active');
   if (name === 'data') renderTable();
   if (name === 'konfirmasi') { fillClientSelects(); generateMsg(); }
-  if (name === 'outstanding') renderOsTable();
+  if (name === 'outstanding') { loadOsData().then(renderOsTable); }
   if (name === 'dividen') fillClientSelects();
 }
 
@@ -1119,13 +1142,13 @@ comboSetup('dv-cid', 'dv-cid-input', 'dv-cid-list');
 
 /* ===== CLIENT CRUD ===== */
 async function addClient() {
-  const db = getDb();
   const id   = document.getElementById('cl-id').value.trim().toUpperCase();
   const nama = document.getElementById('cl-nama').value.trim();
   if (!id || !nama) return toast('Isi Client ID dan Nama!');
   if (clients.find(c => c.id === id)) return toast('Client ID sudah ada!');
-  const { error } = await db.from('dealer_nasabah').insert({ id, nama });
-  if (error) return toastErr('Gagal menyimpan nasabah');
+  try {
+    await _api.post('dealer.php', { id, nama }, { table: 'nasabah' });
+  } catch(err) { console.error(err); return toastErr('Gagal menyimpan nasabah'); }
   clients.push({ id, nama });
   document.getElementById('cl-id').value = '';
   document.getElementById('cl-nama').value = '';
@@ -1134,10 +1157,10 @@ async function addClient() {
 }
 
 async function deleteClient(id) {
-  const db = getDb();
   if (!confirm('Hapus nasabah ini? Semua transaksinya juga akan terhapus.')) return;
-  const { error } = await db.from('dealer_nasabah').delete().eq('id', id);
-  if (error) return toastErr('Gagal menghapus nasabah');
+  try {
+    await _api.delete('dealer.php', { table: 'nasabah', id });
+  } catch(err) { console.error(err); return toastErr('Gagal menghapus nasabah'); }
   clients = clients.filter(c => c.id !== id);
   orders  = orders.filter(o => o.cid !== id);
   fillClientSelects(); renderClientList(); renderTable();
@@ -1205,11 +1228,11 @@ function showImportPreview() {
 }
 
 async function confirmImport() {
-  const db = getDb();
   const toInsert = importBuffer.filter(r => !clients.find(c => c.id === r.id));
   if (!toInsert.length) { cancelImport(); return toast('Tidak ada nasabah baru untuk diimport'); }
-  const { error } = await db.from('dealer_nasabah').insert(toInsert);
-  if (error) return toastErr('Gagal import ke database');
+  try {
+    await _api.post('dealer.php', toInsert, { table: 'nasabah', bulk: 1 });
+  } catch(err) { console.error(err); return toastErr('Gagal import ke database'); }
   clients.push(...toInsert);
   fillClientSelects(); renderClientList(); cancelImport();
   toast(`${toInsert.length} nasabah berhasil diimport`);
@@ -1252,7 +1275,6 @@ function resetForm(full) {
 }
 
 async function saveOrder() {
-  const db = getDb();
   const tgl  = document.getElementById('inp-tgl').value;
   const cid  = document.getElementById('inp-cid').value;
   const nama = document.getElementById('inp-nama').value;
@@ -1266,9 +1288,10 @@ async function saveOrder() {
   const rec   = { id, tgl, cid, nama, kode, trx, qty, harga, total };
   const btn   = document.getElementById('btn-save-order');
   btn.disabled = true;
-  const { error } = await db.from('dealer_transaksi').insert(rec);
+  try {
+    await _api.post('dealer.php', rec, { table: 'transaksi' });
+  } catch(err) { btn.disabled = false; console.error(err); return toastErr('Gagal menyimpan order'); }
   btn.disabled = false;
-  if (error) return toastErr('Gagal menyimpan order');
   orders.unshift(rec); resetForm(); renderTable();
   toast('Order berhasil disimpan');
 }
@@ -1302,12 +1325,12 @@ function renderTable() {
 function toggleAll(cb) { document.querySelectorAll('.row-chk').forEach(c => c.checked=cb.checked); }
 
 async function deleteSelected() {
-  const db = getDb();
   const ids = [...document.querySelectorAll('.row-chk:checked')].map(c=>Number(c.dataset.id));
   if (!ids.length) return toast('Pilih baris yang ingin dihapus!');
   if (!confirm(`Hapus ${ids.length} transaksi?`)) return;
-  const { error } = await db.from('dealer_transaksi').delete().in('id', ids);
-  if (error) return toastErr('Gagal menghapus transaksi');
+  try {
+    await _api.delete('dealer.php', { table: 'transaksi', ids: ids.join(',') });
+  } catch(err) { console.error(err); return toastErr('Gagal menghapus transaksi'); }
   orders = orders.filter(o=>!ids.includes(o.id)); renderTable();
   toast(`${ids.length} data dihapus`);
 }
@@ -1358,7 +1381,6 @@ function calcEditTotal() {
 }
 
 async function updateOrder() {
-  const db = getDb();
   const tgl  = document.getElementById('edit-tgl').value;
   const cid  = document.getElementById('edit-cid').value;
   const nama = document.getElementById('edit-nama').value;
@@ -1373,9 +1395,10 @@ async function updateOrder() {
 
   const btn = document.getElementById('btn-update-order');
   btn.disabled = true;
-  const { error } = await db.from('dealer_transaksi').update(rec).eq('id', editingId);
+  try {
+    await _api.put('dealer.php', rec, { table: 'transaksi', id: editingId });
+  } catch(err) { btn.disabled = false; console.error(err); return toastErr('Gagal memperbarui transaksi'); }
   btn.disabled = false;
-  if (error) return toastErr('Gagal memperbarui transaksi');
 
   const idx = orders.findIndex(x => x.id === editingId);
   if (idx !== -1) orders[idx] = { ...orders[idx], ...rec };
@@ -1451,107 +1474,116 @@ function toast(msg, isErr=false) {
 function toastErr(msg) { toast(msg, true); }
 
 /* ===== OUTSTANDING REPORT ===== */
-const OS_LIMIT_KEY = 'dealer_os_limits';
-const OS_DATA_KEY  = 'dealer_os_data';
+/* ===== OUTSTANDING REPORT ===== */
+// osRows = array dari DB: [{id, nama, limit_diajukan, asset, outstanding, tgl, status, porto_list}]
+let osRows = [];
 
-const DEFAULT_LIMITS = {
-  'J0112N':  10000000000,
-  'DR081N':   2000000000,
-  'WJ010N':   1200000000,
-  'JD015M':   1000000000,
-  'HS151N':    350000000,
-  'R0069N':   1000000000,
-  'BH026N':   1600000000,
-  'EW015N': 2500000000,
-  'RW028N': 5000000000,
-  'H0343N': 30000000000,
-  'WG005N':    500000000,
-};
-
-let osData = {}; // { clientId: { asset, outstanding, tgl, status } }
-
-function loadOsData() {
-  try { osData = JSON.parse(localStorage.getItem(OS_DATA_KEY) || '{}'); } catch { osData = {}; }
-}
-function saveOsData() {
-  localStorage.setItem(OS_DATA_KEY, JSON.stringify(osData));
-}
-
-function getLimitDiajukan(cid) {
+async function loadOsData() {
   try {
-    const stored = JSON.parse(localStorage.getItem(OS_LIMIT_KEY) || '{}');
-    if (stored[cid] !== undefined) return stored[cid];
-  } catch {}
-  return DEFAULT_LIMITS[cid] || 0;
+    const res = await _api.get('dealer.php', { table: 'outstanding' });
+    osRows = res.data || [];
+  } catch(e) { console.error('loadOsData', e); osRows = []; }
 }
 
-function getOsClients() {
-  const ids = Object.keys(DEFAULT_LIMITS);
-  clients.forEach(c => { if (!ids.includes(c.id) && ids.length < 11) ids.push(c.id); });
-  return ids.slice(0, 11);
+function getOsRow(cid) {
+  return osRows.find(r => r.id === cid) || null;
+}
+
+async function osApiPut(cid, fields) {
+  // update via PUT, update lokal state seketika
+  try {
+    await _api.put('dealer.php', fields, { table: 'outstanding', id: cid });
+    const r = getOsRow(cid);
+    if (r) Object.assign(r, fields);
+  } catch(e) { toastErr('Gagal menyimpan ke database'); console.error(e); }
 }
 
 function renderOsTable() {
-  loadOsData();
-  const ids  = getOsClients();
   const tbody = document.getElementById('os-tbody');
   if (!tbody) return;
 
-  tbody.innerHTML = ids.map((cid, i) => {
-    const c     = clients.find(x => x.id === cid);
-    const nama  = c ? c.nama : (cid);
-    const d     = osData[cid] || {};
-    const limitBase = getLimitDiajukan(cid);
-    const os    = parseFloat(d.outstanding || 0);
-    const limitEff = Math.max(0, limitBase - os);
-    const hasOs = os > 0;
-    const status = d.status || 'Kosong';
+  if (!osRows.length) {
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty">Belum ada data. Tambahkan client di bawah.</div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = osRows.map((r, i) => {
+    const cid       = r.id;
+    const nama      = r.nama || cid;
+    const limitBase = parseFloat(r.limit_diajukan || 0);
+    const asset     = parseFloat(r.asset         || 0);
+    const os        = parseFloat(r.outstanding   || 0);
+    const reqLimit  = Math.max(0, limitBase - os);
+    const hasOs     = os > 0;
+    const status    = r.status || 'Kosong';
+    const porto     = r.porto_list || '';
 
     return `<tr>
       <td class="text-muted mono" style="font-size:0.7rem">${i+1}</td>
       <td><span class="cid-tag" style="font-size:0.73rem">${cid}</span></td>
-      <td style="font-size:0.83rem;color:var(--text2)">${nama}</td>
       <td>
-        <input class="os-input-cell" type="text" inputmode="numeric"
-          value="${d.asset ? fmtOsInput(d.asset) : ''}"
-          placeholder="0"
-          onchange="osInputChange('${cid}','asset',this.value)"
-          onblur="osFormatBlur(this,'${cid}','asset')"
-          onfocus="osFormatFocus(this)">
+        <input class="os-input-cell" type="text" style="min-width:100px;text-align:left"
+          value="${escHtml(nama)}" placeholder="Nama nasabah"
+          onchange="osFieldChange('${cid}','nama',this.value)">
       </td>
       <td>
         <input class="os-input-cell" type="text" inputmode="numeric"
-          value="${d.outstanding ? fmtOsInput(d.outstanding) : ''}"
-          placeholder="0"
-          onchange="osInputChange('${cid}','outstanding',this.value)"
-          onblur="osFormatBlur(this,'${cid}','outstanding'); recalcLimit('${cid}')"
-          onfocus="osFormatFocus(this)">
+          value="${asset > 0 ? fmtOsInput(asset) : ''}" placeholder="0"
+          onchange="osFieldChange('${cid}','asset',this.value)"
+          onblur="osFormatBlur(this)" onfocus="osFormatFocus(this)">
+      </td>
+      <td>
+        <input class="os-input-cell" type="text" inputmode="numeric"
+          value="${os > 0 ? fmtOsInput(os) : ''}" placeholder="0"
+          onchange="osFieldChange('${cid}','outstanding',this.value)"
+          onblur="osFormatBlur(this);recalcLimit('${cid}')" onfocus="osFormatFocus(this)">
       </td>
       <td>
         <input class="os-date-cell" type="date"
-          value="${d.tgl || ''}"
-          onchange="osInputChange('${cid}','tgl',this.value)">
+          value="${r.tgl || ''}"
+          onchange="osFieldChange('${cid}','tgl',this.value)">
       </td>
       <td>
         <div class="os-limit-display ${hasOs ? 'reduced' : ''}" id="os-limit-${cid}">
-          Rp ${fmt(limitEff)}
+          Rp ${fmt(reqLimit)}
         </div>
         <div style="font-size:0.65rem;color:var(--muted);margin-top:2px">
-          Limit: Rp ${fmt(limitBase)}
+          <input class="os-input-cell" type="text" inputmode="numeric"
+            style="font-size:0.65rem;padding:3px 6px;min-width:90px;color:var(--muted)"
+            value="${limitBase > 0 ? fmtOsInput(limitBase) : ''}" placeholder="Limit"
+            title="Edit Limit Diajukan"
+            onchange="osFieldChange('${cid}','limit_diajukan',this.value)"
+            onblur="osFormatBlur(this);recalcLimit('${cid}')" onfocus="osFormatFocus(this)">
         </div>
       </td>
       <td>
-        <select class="os-select-cell" onchange="osInputChange('${cid}','status',this.value)">
-          <option value="Kosong"     ${status==='Kosong'     ? 'selected':''}>Kosong</option>
-          <option value="T1"         ${status==='T1'         ? 'selected':''}>T1</option>
-          <option value="T2"         ${status==='T2'         ? 'selected':''}>T2</option>
-          <option value="Overdue"    ${status==='Overdue'    ? 'selected':''}>Overdue</option>
-          <option value="Force Sell" ${status==='Force Sell' ? 'selected':''}>Force Sell</option>
+        <input class="os-input-cell" type="text"
+          style="min-width:130px;text-transform:uppercase;font-family:'DM Mono',monospace;font-size:0.75rem"
+          value="${escHtml(porto)}" placeholder="BBCA, BMRI, ..."
+          title="Portofolio List (pisah koma, auto-uppercase)"
+          onchange="osFieldChange('${cid}','porto_list',this.value.toUpperCase())"
+          oninput="this.value=this.value.toUpperCase()">
+      </td>
+      <td>
+        <select class="os-select-cell" onchange="osFieldChange('${cid}','status',this.value)">
+          <option value="Kosong"     ${status==='Kosong'     ?'selected':''}>Kosong</option>
+          <option value="T1"         ${status==='T1'         ?'selected':''}>T1</option>
+          <option value="T2"         ${status==='T2'         ?'selected':''}>T2</option>
+          <option value="Overdue"    ${status==='Overdue'    ?'selected':''}>Overdue</option>
+          <option value="Force Sell" ${status==='Force Sell' ?'selected':''}>Force Sell</option>
         </select>
+      </td>
+      <td>
+        <button class="btn-xs" onclick="osDeleteRow('${cid}')" title="Hapus dari daftar">✕</button>
       </td>
     </tr>`;
   }).join('');
 }
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 
 function fmtOsInput(val) {
   const n = parseFloat(String(val).replace(/[^0-9]/g, '')) || 0;
@@ -1564,103 +1596,140 @@ function osFormatFocus(el) {
   el.select();
 }
 
-function osFormatBlur(el, cid, field) {
+function osFormatBlur(el) {
   const n = parseFloat(String(el.value).replace(/[^0-9]/g, '')) || 0;
   el.value = n > 0 ? n.toLocaleString('id-ID') : '';
 }
 
-function osInputChange(cid, field, val) {
-  if (!osData[cid]) osData[cid] = {};
-  if (field === 'asset' || field === 'outstanding') {
-    osData[cid][field] = parseFloat(String(val).replace(/[^0-9]/g, '')) || 0;
-  } else {
-    osData[cid][field] = val;
+// Debounce timer per field agar tidak spam request saat mengetik
+const _osDebounce = {};
+function osFieldChange(cid, field, val) {
+  // Update state lokal seketika
+  const r = getOsRow(cid);
+  if (!r) return;
+
+  let parsed = val;
+  if (['asset','outstanding','limit_diajukan'].includes(field)) {
+    parsed = parseFloat(String(val).replace(/[^0-9]/g, '')) || 0;
   }
-  saveOsData();
-  if (field === 'outstanding') recalcLimit(cid);
+  if (field === 'porto_list') {
+    parsed = val.toUpperCase();
+  }
+  r[field] = parsed;
+
+  if (field === 'outstanding' || field === 'limit_diajukan') recalcLimit(cid);
+
+  // Debounce save ke API (400ms)
+  const key = cid + '_' + field;
+  clearTimeout(_osDebounce[key]);
+  _osDebounce[key] = setTimeout(() => osApiPut(cid, { [field]: parsed }), 400);
 }
 
 function recalcLimit(cid) {
-  const d = osData[cid] || {};
-  const limitBase = getLimitDiajukan(cid);
-  const os = parseFloat(d.outstanding || 0);
-  const limitEff = Math.max(0, limitBase - os);
+  const r = getOsRow(cid);
+  if (!r) return;
+  const limitBase = parseFloat(r.limit_diajukan || 0);
+  const os        = parseFloat(r.outstanding    || 0);
+  const reqLimit  = Math.max(0, limitBase - os);
   const el = document.getElementById('os-limit-' + cid);
   if (el) {
-    el.textContent = 'Rp ' + fmt(limitEff);
+    el.textContent = 'Rp ' + fmt(reqLimit);
     el.className = 'os-limit-display' + (os > 0 ? ' reduced' : '');
   }
 }
 
-function resetOsData() {
-  if (!confirm('Reset semua data Asset, Outstanding, Tanggal, dan Status?')) return;
-  osData = {};
-  saveOsData();
-  renderOsTable();
-  toast('Data outstanding direset');
+async function osDeleteRow(cid) {
+  if (!confirm(`Hapus ${cid} dari daftar Outstanding?`)) return;
+  try {
+    await _api.delete('dealer.php', { table: 'outstanding', id: cid });
+    osRows = osRows.filter(r => r.id !== cid);
+    renderOsTable();
+    toast(`${cid} dihapus dari Outstanding`);
+  } catch(e) { console.error(e); toastErr('Gagal menghapus'); }
+}
+
+async function osAddClient() {
+  const id    = document.getElementById('os-add-id').value.trim().toUpperCase();
+  const nama  = document.getElementById('os-add-nama').value.trim();
+  const limit = parseFloat(String(document.getElementById('os-add-limit').value).replace(/[^0-9]/g,'')) || 0;
+  if (!id) return toast('Client ID wajib diisi');
+  if (osRows.find(r => r.id === id)) return toast('Client ID sudah ada di daftar');
+  try {
+    await _api.post('dealer.php', { id, nama, limit_diajukan: limit }, { table: 'outstanding' });
+    osRows.push({ id, nama: nama||id, limit_diajukan: limit, asset: 0, outstanding: 0, tgl: null, status: 'Kosong', porto_list: '' });
+    document.getElementById('os-add-id').value = '';
+    document.getElementById('os-add-nama').value = '';
+    document.getElementById('os-add-limit').value = '';
+    renderOsTable();
+    toast(`${id} berhasil ditambahkan`);
+  } catch(e) { console.error(e); toastErr('Gagal menambahkan client'); }
+}
+
+async function resetOsData() {
+  if (!confirm('Reset semua nilai Asset, Outstanding, Tanggal, dan Status ke 0/kosong? Data nasabah dan limit tetap ada.')) return;
+  try {
+    await Promise.all(osRows.map(r =>
+      _api.put('dealer.php', { asset: 0, outstanding: 0, tgl: null, status: 'Kosong' }, { table: 'outstanding', id: r.id })
+    ));
+    osRows.forEach(r => { r.asset=0; r.outstanding=0; r.tgl=null; r.status='Kosong'; });
+    renderOsTable();
+    toast('Data outstanding direset');
+  } catch(e) { console.error(e); toastErr('Gagal reset'); }
 }
 
 function generateOsReport() {
-  loadOsData();
-  const ids = getOsClients();
-  const now = new Date();
+  const now       = new Date();
   const tglReport = now.toLocaleDateString('id-ID', { day:'2-digit', month:'long', year:'numeric' });
-
   const statusOrder = ['Force Sell', 'Overdue', 'T2', 'T1', 'Kosong'];
   const grouped = {};
   statusOrder.forEach(s => grouped[s] = []);
 
-  ids.forEach(cid => {
-    const c    = clients.find(x => x.id === cid);
-    const nama = c ? c.nama : cid;
-    const d    = osData[cid] || {};
-    const status = d.status || 'Kosong';
-    grouped[status].push({ cid, nama, ...d });
+  osRows.forEach(r => {
+    const status = r.status || 'Kosong';
+    if (grouped[status]) grouped[status].push(r);
+    else grouped['Kosong'].push(r);
   });
 
   const activeStatuses = statusOrder.filter(s => grouped[s].length > 0);
   const body = document.getElementById('os-report-body');
   const headerClass = {
-    'Force Sell': 'forcesell', 'Overdue': 'overdue',
-    'T2': 't2', 'T1': 't1', 'Kosong': 'kosong'
+    'Force Sell':'forcesell','Overdue':'overdue','T2':'t2','T1':'t1','Kosong':'kosong'
   };
   const sectionTxt = {};
 
   body.innerHTML = `
     <div class="os-report-meta">
       <div class="os-report-meta-item">Tanggal Cetak: <strong>${tglReport}</strong></div>
-      <div class="os-report-meta-item">Total Nasabah: <strong>${ids.length}</strong></div>
-      <div class="os-report-meta-item">Bermasalah: <strong>${ids.filter(id => (osData[id]?.status||'Kosong') !== 'Kosong').length}</strong></div>
+      <div class="os-report-meta-item">Total Nasabah: <strong>${osRows.length}</strong></div>
+      <div class="os-report-meta-item">Bermasalah: <strong>${osRows.filter(r=>(r.status||'Kosong')!=='Kosong').length}</strong></div>
     </div>
     ${activeStatuses.map(status => {
       const rows = grouped[status];
       if (!rows.length) return '';
       const secLines = [];
       if (status !== 'Kosong') secLines.push(`== ${status} ==`, '');
+
       rows.forEach(r => {
-        const limitBase = getLimitDiajukan(r.cid);
-        const os   = parseFloat(r.outstanding || 0);
-        const limitEff = Math.max(0, limitBase - os);
-        const tgl  = r.tgl ? fmtDate(r.tgl) : '—';
-        if (status !== 'Kosong') {
-          secLines.push(
-            `${status} (${tgl})`, '',
-            `Client ID        : ${r.cid}`,
-            `Nama             : ${r.nama}`,
-            `Asset            : Rp ${fmt(r.asset || 0)}`,
-            `Outstanding      : Rp ${fmt(os)}`,
-            `Limit Diajukan   : Rp ${fmt(limitEff)}`, ''
-          );
-        } else {
-          secLines.push(
-            `Client ID        : ${r.cid}`,
-            `Nama             : ${r.nama}`,
-            `Asset            : Rp ${fmt(r.asset || 0)}`,
-            `Outstanding      : Rp ${fmt(os)}`,
-            `Limit Diajukan   : Rp ${fmt(limitEff)}`, ''
-          );
-        }
+        const asset    = parseFloat(r.asset        || 0);
+        const os       = parseFloat(r.outstanding  || 0);
+        const limit    = parseFloat(r.limit_diajukan || 0);
+        const nettAsset  = asset - os;
+        const reqLimit   = Math.max(0, limit - os);
+        const porto      = (r.porto_list || '').trim();
+        const tgl        = r.tgl ? fmtDate(r.tgl) : '—';
+        const clientLine = `${r.id} – ${r.nama || r.id}`;
+
+        secLines.push(
+          `Client Code/Client Name  : ${clientLine}`,
+          `Total Porto              : Rp ${fmt(asset)}`,
+          `Total Cash               : ${os > 0 ? '-' : ''}Rp ${fmt(os)}`,
+          `Nett Asset               : Rp ${fmt(nettAsset)}`,
+          `Request Temp limit       : Rp ${fmt(reqLimit)}`,
+          porto ? `Portfolio List           : ${porto}` : `Portfolio List           : —`,
+          ''
+        );
       });
+
       sectionTxt[status] = secLines.join('\n');
 
       return `
@@ -1671,40 +1740,47 @@ function generateOsReport() {
             <button onclick="copyOsSection('${status}')" style="
               margin-left:10px;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.35);
               color:#fff;border-radius:5px;padding:3px 10px;font-size:0.65rem;font-weight:600;
-              cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:0.04em;
-              transition:background 0.15s;" title="Salin section ini"
+              cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:0.04em;transition:background 0.15s;"
               onmouseover="this.style.background='rgba(255,255,255,0.28)'"
-              onmouseout="this.style.background='rgba(255,255,255,0.18)'">
-              📋 Salin
-            </button>
+              onmouseout="this.style.background='rgba(255,255,255,0.18)'">📋 Salin</button>
           </div>
           ${rows.map(r => {
-            const limitBase = getLimitDiajukan(r.cid);
-            const os   = parseFloat(r.outstanding || 0);
-            const limitEff = Math.max(0, limitBase - os);
-            const tgl  = r.tgl ? fmtDate(r.tgl) : '—';
-            const hasOs = os > 0;
+            const asset   = parseFloat(r.asset       || 0);
+            const os      = parseFloat(r.outstanding || 0);
+            const limit   = parseFloat(r.limit_diajukan || 0);
+            const nettAsset = asset - os;
+            const reqLimit  = Math.max(0, limit - os);
+            const porto     = (r.porto_list || '').trim();
+            const tgl       = r.tgl ? fmtDate(r.tgl) : '—';
             return `<div class="os-report-row">
               ${status !== 'Kosong' ? `<div class="os-report-row-header">${status} (${tgl})</div>` : ''}
               <div class="os-report-line">
-                <span class="os-rl-key">Client ID</span><span class="os-rl-sep">:</span>
-                <span class="os-rl-val accent">${r.cid}</span>
+                <span class="os-rl-key">Client Code/Client Name</span><span class="os-rl-sep">:</span>
+                <span class="os-rl-val accent">${r.id} – ${r.nama || r.id}</span>
               </div>
               <div class="os-report-line">
-                <span class="os-rl-key">Nama</span><span class="os-rl-sep">:</span>
-                <span class="os-rl-val">${r.nama}</span>
+                <span class="os-rl-key">Total Porto</span><span class="os-rl-sep">:</span>
+                <span class="os-rl-val">Rp ${fmt(asset)}</span>
               </div>
               <div class="os-report-line">
-                <span class="os-rl-key">Asset</span><span class="os-rl-sep">:</span>
-                <span class="os-rl-val">Rp ${fmt(r.asset || 0)}</span>
+                <span class="os-rl-key">Total Cash</span><span class="os-rl-sep">:</span>
+                <span class="os-rl-val ${os>0?'red':''}">
+                  ${os > 0 ? '-' : ''}Rp ${fmt(os)}
+                </span>
               </div>
               <div class="os-report-line">
-                <span class="os-rl-key">Outstanding</span><span class="os-rl-sep">:</span>
-                <span class="os-rl-val ${hasOs ? 'red' : ''}">Rp ${fmt(os)}</span>
+                <span class="os-rl-key">Nett Asset</span><span class="os-rl-sep">:</span>
+                <span class="os-rl-val ${nettAsset<0?'red':'accent'}">Rp ${fmt(nettAsset)}</span>
               </div>
               <div class="os-report-line">
-                <span class="os-rl-key">Limit Diajukan</span><span class="os-rl-sep">:</span>
-                <span class="os-rl-val ${hasOs ? 'red' : 'accent'}">Rp ${fmt(limitEff)}</span>
+                <span class="os-rl-key">Request Temp limit</span><span class="os-rl-sep">:</span>
+                <span class="os-rl-val ${os>0?'red':'accent'}">Rp ${fmt(reqLimit)}</span>
+              </div>
+              <div class="os-report-line">
+                <span class="os-rl-key">Portfolio List</span><span class="os-rl-sep">:</span>
+                <span class="os-rl-val" style="font-family:'DM Mono',monospace;font-size:0.8rem">
+                  ${porto || '<span style="color:var(--muted)">—</span>'}
+                </span>
               </div>
             </div>`;
           }).join('')}
@@ -1718,7 +1794,6 @@ function generateOsReport() {
 
   document.getElementById('os-report-modal').classList.add('show');
 }
-
 function closeOsModal(e) {
   if (e && e.target !== document.getElementById('os-report-modal')) return;
   document.getElementById('os-report-modal').classList.remove('show');
@@ -1811,7 +1886,6 @@ function dvFmtDate(val) {
 }
 
 async function dvGenerate() {
-  const db    = getDb();
   const tgl   = document.getElementById('dv-tgl').value;
   const cid   = document.getElementById('dv-cid').value;
   const nama  = document.getElementById('dv-nama').value;
@@ -1856,9 +1930,10 @@ async function dvGenerate() {
 
   const btn = document.getElementById('btn-dv-generate');
   if (btn) btn.disabled = true;
-  const { error } = await db.from('dealer_dividen').insert(rec);
+  try {
+    await _api.post('dealer.php', rec, { table: 'dividen' });
+  } catch(err) { if (btn) btn.disabled = false; console.error(err); return toastErr('Gagal menyimpan dividen'); }
   if (btn) btn.disabled = false;
-  if (error) { console.error(error); return toastErr('Gagal menyimpan dividen'); }
 
   // simpan snapshot tampilan (tglFmt & savedAt) di memori supaya riwayat rapi
   dividends.unshift({
@@ -1929,9 +2004,9 @@ function dvCopyItem(id) {
 }
 
 async function dvDeleteItem(id) {
-  const db = getDb();
-  const { error } = await db.from('dealer_dividen').delete().eq('id', id);
-  if (error) { console.error(error); return toastErr('Gagal menghapus dividen'); }
+  try {
+    await _api.delete('dealer.php', { table: 'dividen', id });
+  } catch(err) { console.error(err); return toastErr('Gagal menghapus dividen'); }
   dividends = dividends.filter(x => x.id !== id);
   dvRenderHistory();
   toast('Data dihapus');
@@ -1939,11 +2014,11 @@ async function dvDeleteItem(id) {
 
 async function dvClearAll() {
   if (!confirm('Hapus semua riwayat dividen?')) return;
-  const db  = getDb();
   const ids = dividends.map(x => x.id);
   if (ids.length) {
-    const { error } = await db.from('dealer_dividen').delete().in('id', ids);
-    if (error) { console.error(error); return toastErr('Gagal menghapus riwayat'); }
+    try {
+      await _api.delete('dealer.php', { table: 'dividen', ids: ids.join(',') });
+    } catch(err) { console.error(err); return toastErr('Gagal menghapus riwayat'); }
   }
   dividends = [];
   dvRenderHistory();

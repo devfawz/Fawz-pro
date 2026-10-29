@@ -4,7 +4,7 @@
   <script src="config.js"></script>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Fawz Pro | Sales Commission</title>
+  <title>Sales Petik Profit | Sales Commission</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -19,7 +19,7 @@
   <style>
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
     :root {
-      --navy:#0d0d2b; --purple:#1e1252; --gold:#f5a623; --gold-light:#ffc857;
+      --navy:#1b4332; --purple:#14532d; --gold:#f5a623; --gold-light:#ffd43b;
       --bg:#f4f5fb; --white:#fff; --border:#e0e0ef; --text:#1a1a3a; --gray:#888;
       --green:#27ae60; --red:#e74c3c; --blue:#2980b9;
       --nav-h:68px;
@@ -47,7 +47,7 @@
 
     /* ── SUMMARY BANNER ── */
     .summary-banner {
-      background:linear-gradient(135deg,#0d0d2b 0%,#1e1252 100%);
+      background:linear-gradient(135deg,#1b4332 0%,#14532d 100%);
       border-radius:20px; padding:28px 32px; margin-bottom:24px;
       display:grid; grid-template-columns:1fr auto; gap:24px; align-items:center;
       box-shadow:0 8px 32px rgba(13,13,43,.22); position:relative; overflow:hidden;
@@ -100,7 +100,7 @@
     .lb-item:hover { background:#fffbf3; }
     .lb-item.active { background:#fffbf3; border-left:3px solid var(--gold); padding-left:15px; }
     .lb-rank { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.72rem; font-weight:700; flex-shrink:0; }
-    .lb-rank.r1 { background:linear-gradient(135deg,#f5a623,#ffc857); color:#fff; }
+    .lb-rank.r1 { background:linear-gradient(135deg,#f5a623,#ffd43b); color:#fff; }
     .lb-rank.r2 { background:linear-gradient(135deg,#8e9eab,#b0bec5); color:#fff; }
     .lb-rank.r3 { background:linear-gradient(135deg,#cd7f32,#e8a060); color:#fff; }
     .lb-rank.rn { background:#f0f0fa; color:var(--gray); }
@@ -1133,8 +1133,8 @@
     const thead = document.getElementById('historyThead');
     const tbody = document.getElementById('historyTbody');
 
-    let thHTML = '<tr style="background:#0d0d2b;">';
-    thHTML += '<th style="padding:12px 14px;text-align:left;font-size:.72rem;font-weight:700;color:#fff;letter-spacing:.5px;white-space:nowrap;position:sticky;left:0;background:#0d0d2b;z-index:2;">Sales</th>';
+    let thHTML = '<tr style="background:#1b4332;">';
+    thHTML += '<th style="padding:12px 14px;text-align:left;font-size:.72rem;font-weight:700;color:#fff;letter-spacing:.5px;white-space:nowrap;position:sticky;left:0;background:#1b4332;z-index:2;">Sales</th>';
     months.forEach(ym => {
       const mn = parseInt(ym.split('-')[1]) - 1;
       thHTML += `<th style="padding:12px 14px;text-align:right;font-size:.72rem;font-weight:700;color:#fff;letter-spacing:.5px;white-space:nowrap;">${MONTH_NAMES[mn]}</th>`;

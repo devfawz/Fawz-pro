@@ -4,7 +4,7 @@
   <script src="config.js"></script>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Fawz Pro | Daily Activity Report</title>
+  <title>Sales Petik Profit | Daily Activity Report</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script>
@@ -16,7 +16,7 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --navy: #0d0d2b; --gold: #f5a623; --gold-light: #ffc857;
+      --navy: #1b4332; --gold: #f5a623; --gold-light: #ffd43b;
       --nav-h: 68px; --bg: #f4f5fb;
     }
     body { font-family: 'Inter', sans-serif; background: var(--bg); min-height: 100vh; padding-top: var(--nav-h); }
@@ -113,7 +113,7 @@
     .jls-pending    { background: rgba(245,158,11,0.12); color: #d97706; }
     .jls-finished   { background: rgba(16,185,129,0.12); color: #059669; }
     .jls-cancelled  { background: rgba(239,68,68,0.1);   color: #dc2626; }
-    .jls-returned   { background: rgba(139,92,246,0.1);  color: #7c3aed; }
+    .jls-returned   { background: rgba(139,92,246,0.1);  color: #15803d; }
 
     /* ── TIMELINE PANEL (RIGHT) ── */
     .timeline-panel {
@@ -161,7 +161,7 @@
     .badge-pending   { background: rgba(245,158,11,0.12); color: #d97706; }
     .badge-finished  { background: rgba(16,185,129,0.12); color: #059669; }
     .badge-cancelled { background: rgba(239,68,68,0.1);   color: #dc2626; }
-    .badge-returned  { background: rgba(139,92,246,0.1);  color: #7c3aed; }
+    .badge-returned  { background: rgba(139,92,246,0.1);  color: #15803d; }
     .badge-inprogress{ background: rgba(59,130,246,0.1);  color: #2563eb; }
     .tl-notes { font-size: 0.84rem; color: #555; margin-top: 4px; font-style: italic; }
     .tl-notes.empty { color: #ccc; font-style: italic; font-size: 0.78rem; }
@@ -240,13 +240,13 @@
     }
     .ov-avatar {
       width: 26px; height: 26px; border-radius: 50%;
-      background: linear-gradient(135deg, var(--navy), #1a0e4a);
+      background: linear-gradient(135deg, var(--navy), #166534);
       display: flex; align-items: center; justify-content: center;
       font-size: 0.72rem; font-weight: 700; color: var(--gold); flex-shrink: 0;
     }
     .ov-role-tag { font-size: 0.68rem; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
     .ov-role-admin    { background: rgba(74,108,223,0.1);  color: #4a6cdf; }
-    .ov-role-treasury { background: rgba(139,92,246,0.1);  color: #7c3aed; }
+    .ov-role-treasury { background: rgba(139,92,246,0.1);  color: #15803d; }
     .ov-role-head_account { background: rgba(245,166,35,0.15); color: #b87e10; }
     .ov-empty { text-align: center; padding: 32px; color: #bbb; font-size: 0.88rem; }
 

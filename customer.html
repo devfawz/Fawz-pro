@@ -4,17 +4,10 @@
   <script src="config.js"></script>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Fawz Pro | Data Customer</title>
+  <title>Sales Petik Profit | Data Customer</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 
-  <!-- Supabase SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script>
-    const SUPABASE_URL = (window.__FAWZ_CONFIG__ || {}).supabaseUrl || '';
-    const SUPABASE_KEY = (window.__FAWZ_CONFIG__ || {}).supabaseKey || '';
-    const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    window._supabase = _sb;
-
     window.addEventListener('DOMContentLoaded', () => {
       // Set _curUser dari session sebelum load data
       const _raw = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
@@ -27,10 +20,10 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --navy: #0d0d2b;
-      --purple: #1e1252;
+      --navy: #1b4332;
+      --purple: #14532d;
       --gold: #f5a623;
-      --gold-light: #ffc857;
+      --gold-light: #ffd43b;
       --bg: #f4f5fb;
       --white: #ffffff;
       --nav-h: 68px;
@@ -503,10 +496,10 @@
   let currentPage = 1;
   const ROLE_LABELS = { head_account: 'Head Account', admin: 'Admin', sales: 'Sales', treasury: 'Bonds', head_sales: 'Head Sales' };
 
-  // ===== SUPABASE =====
-  // Helper: map snake_case Supabase row → camelCase for UI compatibility
+  // ===== API (MySQL PHP) =====
+  // Helper: map snake_case API row → camelCase for UI compatibility
   function mapCustomerRow(r) {
-    return {
+    const mapped = {
       id: r.id,
       fawzId: r.fawz_id || '',
       clientID: r.client_id || '',
@@ -537,28 +530,39 @@
       activeDate: r.active_date || '',
       closedDate: r.closed_date || '',
       createdDate: r.created_at ? r.created_at.slice(0,10) : '',
-      bankAccountNo: '', // will be filled from securities if needed
+      bankAccountNo: '',
       bankAccountID: '',
-      ...r, // keep original snake_case fields too
     };
-  }
 
-  // Fetch semua rows dari Supabase dengan pagination (bypass limit 1000)
-  async function fetchAllCustomers(baseQuery) {
-    const PAGE = 1000;
-    let allData = [], from = 0;
-    while (true) {
-      const { data, error } = await baseQuery.range(from, from + PAGE - 1);
-      if (error) throw error;
-      if (!data || data.length === 0) break;
-      allData = allData.concat(data);
-      if (data.length < PAGE) break; // last page
-      from += PAGE;
+    // Attach securities (joined array from API)
+    const secArr = Array.isArray(r.securities) ? r.securities : [];
+    const sec = secArr[0];
+    if (sec) {
+      mapped.rdnBankName    = sec.rdn_bank_name      || '';
+      mapped.rdnAccountNo   = sec.rdn_account_no     || '';
+      mapped.bankAccountID  = sec.personal_bank_name || '';
+      mapped.bankAccountNo  = sec.personal_account_no || '';
+      mapped.bankAccountName = sec.personal_account_name || '';
+      mapped.savingsBankName = sec.rdn_bank_name     || '';
+      mapped.savingsID      = sec.rdn_account_no     || '';
+      mapped.savingsBankID  = sec.rdn_bank_id        || '';
     }
-    return allData;
+    mapped.securities = secArr.map(s => ({
+      sekuritasName:       s.sekuritas_name        || 'Maybank Sekuritas',
+      rdnBankName:         s.rdn_bank_name         || '',
+      rdnBankID:           s.rdn_bank_id           || '',
+      rdnAccountNo:        s.rdn_account_no        || '',
+      savingsBankID:       s.rdn_bank_id           || '',
+      personalBankName:    s.personal_bank_name    || '',
+      personalAccountNo:   s.personal_account_no   || '',
+      personalAccountName: s.personal_account_name || '',
+    }));
+    return mapped;
   }
 
   // ===== AUTO-GENERATE FAWZ ID =====
+  // Fawz ID: F + 6 digit. Tidak unik — customer dengan base Client ID sama
+  // (mis. RW028Y & RW028N dianggap orang yang sama) berbagi Fawz ID yang sama.
   function generateFawzId(existingIds) {
     let id;
     do {
@@ -568,154 +572,69 @@
     return id;
   }
 
-  // Mendapatkan "base" Client ID: jika karakter terakhir Y atau N, hapus suffix tersebut
-  // Contoh: RW028Y → RW028, RW028N → RW028 (dianggap orang yang sama)
+  // Base Client ID: buang suffix Y/N di akhir (RW028Y → RW028, RW028N → RW028)
   function getClientIdBase(clientID) {
     if (!clientID) return '';
     const upper = clientID.toUpperCase().trim();
     const lastChar = upper.slice(-1);
-    if (lastChar === 'Y' || lastChar === 'N') {
-      return upper.slice(0, -1);
-    }
-    return upper;
+    return (lastChar === 'Y' || lastChar === 'N') ? upper.slice(0, -1) : upper;
   }
 
   async function autoGenerateFawzIds() {
-    // Collect existing fawz_ids to avoid duplicates
-    const existingIds = new Set(allCustomers.filter(c => c.fawzId).map(c => c.fawzId));
+    // Hanya role yang boleh menulis (admin/head_account) yang generate,
+    // supaya tidak memicu 403 berulang untuk role lain.
+    const role = (window._curUser && window._curUser.role) || '';
+    if (role !== 'admin' && role !== 'head_account') return;
 
-    // Build a map: clientIdBase → fawzId (from already-assigned customers)
-    // Prioritas: ambil fawz_id pertama yang ditemukan untuk setiap base
+    const toUpdate = allCustomers.filter(c => !c.fawzId && c.clientName);
+    if (toUpdate.length === 0) return;
+
+    // Kumpulkan fawzId yang sudah ada + map base Client ID → fawzId
+    const existingIds = new Set(allCustomers.filter(c => c.fawzId).map(c => c.fawzId));
     const baseToFawzId = {};
     for (const c of allCustomers) {
       if (c.fawzId && c.clientID) {
         const base = getClientIdBase(c.clientID);
-        if (base && !baseToFawzId[base]) {
-          baseToFawzId[base] = c.fawzId;
-        }
+        if (base && !baseToFawzId[base]) baseToFawzId[base] = c.fawzId;
       }
     }
-
-    // FIX-UP: Samakan Fawz ID untuk customer yang sudah punya tapi base-nya sama
-    // Contoh: RW028Y=F587973, RW028N=F364362 → keduanya jadi F587973
-    for (const c of allCustomers) {
-      if (c.fawzId && c.clientID) {
-        const base = getClientIdBase(c.clientID);
-        if (base && baseToFawzId[base] && c.fawzId !== baseToFawzId[base]) {
-          const correctId = baseToFawzId[base];
-          c.fawzId = correctId;
-          try {
-            await window._supabase.from('customers').update({ fawz_id: correctId }).eq('id', c.id);
-          } catch(e) {
-            console.warn('Gagal fix Fawz ID untuk', c.id, e);
-          }
-        }
-      }
-    }
-
-    // Generate Fawz ID untuk customer yang belum punya
-    const toUpdate = allCustomers.filter(c => !c.fawzId);
-    if (toUpdate.length === 0) { applyFilters(); return; }
 
     for (const c of toUpdate) {
       const base = getClientIdBase(c.clientID);
       let newId;
-
-      // Jika ada customer lain dengan base Client ID yang sama dan sudah punya Fawz ID, pakai yang sama
       if (base && baseToFawzId[base]) {
-        newId = baseToFawzId[base];
+        newId = baseToFawzId[base];           // samakan dengan sibling Y/N
       } else {
         newId = generateFawzId(existingIds);
         existingIds.add(newId);
         if (base) baseToFawzId[base] = newId;
       }
-
       c.fawzId = newId;
-      // Save to Supabase
       try {
-        await window._supabase.from('customers').update({ fawz_id: newId }).eq('id', c.id);
-      } catch(e) {
+        await window._api.put('customers.php', { fawz_id: newId }, { id: c.id });
+      } catch (e) {
         console.warn('Gagal simpan Fawz ID untuk', c.id, e);
       }
     }
-    // Re-render setelah generate
     applyFilters();
   }
 
   async function loadCustomers() {
     try {
       const cu = window._curUser || JSON.parse(sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember') || '{}');
-      const baseQuery = () => window._supabase
-        .from('customers')
-        .select('*, customer_securities(*)')
-        .order('created_at', { ascending: false });
-      // Sales hanya bisa lihat customer miliknya sendiri
-      // Exception: akun "Petik Profit" bisa lihat seluruh customer tanpa filter
-      if (cu.role === 'sales') {
-        const salesName = (cu.name || '').trim();
-        const salesNameLower = salesName.toLowerCase();
-        const isPetikProfit = salesNameLower === 'petik profit';
 
-        if (!isPetikProfit) {
-          const allData = await fetchAllCustomers(baseQuery());
-          if (false) throw null; // keep error flow consistent
-          const filtered = (allData || []).filter(r => {
-            const pic = (r.sales_person_name || '').toLowerCase();
-            const ref = (r.referral_agents || '').toLowerCase();
-            return pic === salesNameLower || ref.includes(salesNameLower);
-          });
-          allCustomers = filtered.map(r => {
-            const mapped = mapCustomerRow(r);
-            const sec = r.customer_securities && r.customer_securities[0];
-            if (sec) {
-              mapped.ksei_single_id = sec.ksei_single_id || mapped.ksei_single_id || '';
-              mapped.rdn_number     = sec.rdn_number     || mapped.rdn_number     || '';
-              mapped.sekuritas      = sec.sekuritas_name || mapped.sekuritas      || '';
-            }
-            return mapped;
-          });
-          allCustomers.sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
-          filteredCustomers = [...allCustomers];
-          currentPage = 1;
-          renderTable(filteredCustomers);
-          updateStats();
-          autoGenerateFawzIds();
-          return;
-        }
-        // Petik Profit: jatuh ke flow bawah (load semua customer tanpa filter)
-      }
-      const data = await fetchAllCustomers(baseQuery());
-      const error = null;
-      if (error) throw error;
-      allCustomers = (data || []).map(r => {
-        const mapped = mapCustomerRow(r);
-        // Attach securities data from join
-        const sec = r.customer_securities && r.customer_securities[0];
-        if (sec) {
-          mapped.rdnBankName = sec.rdn_bank_name || '';
-          mapped.rdnAccountNo = sec.rdn_account_no || '';
-          mapped.bankAccountID = sec.personal_bank_name || '';
-          mapped.bankAccountNo = sec.personal_account_no || '';
-          mapped.bankAccountName = sec.personal_account_name || '';
-          mapped.savingsBankName = sec.rdn_bank_name || '';
-          mapped.savingsID = sec.rdn_account_no || '';
-          mapped.savingsBankID = sec.rdn_bank_name || '';
-        }
-        mapped.securities = (r.customer_securities || []).map(s => ({
-          sekuritasName: s.sekuritas_name || 'Maybank Sekuritas',
-          rdnBankName: s.rdn_bank_name || '',
-          rdnBankID: s.rdn_bank_id || '',
-          rdnAccountNo: s.rdn_account_no || '',         // SavingsID
-          savingsBankID: s.rdn_bank_id || '',           // SavingsBankID
-          personalBankName: s.personal_bank_name || '', // BankAccountID
-          personalAccountNo: s.personal_account_no || '', // BankAccountNo
-          personalAccountName: s.personal_account_name || '', // BankAccountName
-        }));
-        return mapped;
-      });
+      // Build query params; API handles role-based filtering server-side.
+      // Pass sales name so PHP can filter when role=sales (except Petik Profit).
+      const params = { per_page: 99999 };
+
+      const res = await window._api.get('customers.php', params);
+      allCustomers = (res.data || []).map(mapCustomerRow);
+
       applyFilters(); updateStats(); populateFilters();
-      autoGenerateFawzIds();
       showToast('Data berhasil dimuat', 'success');
+
+      // Generate Fawz ID untuk customer yang belum punya (jalan di background)
+      autoGenerateFawzIds();
     } catch (e) {
       console.error(e);
       showToast('Gagal memuat data.', 'error');
@@ -730,66 +649,54 @@
     const btn = document.getElementById('formSaveBtn');
     btn.textContent = 'Menyimpan...'; btn.disabled = true;
     try {
-      // Map camelCase to snake_case for Supabase
       const row = {
-        client_id: data.clientID || data.client_id || null,
-        client_name: data.clientName || data.client_name || null,
-        birth_date: parseDateField(data.cifInvestorBirthDate || data.birthDate || data.birth_date || ''),
-        ktp_number: data.ktpNumber || data.ktp_number || null,
+        client_id: data.clientID || null,
+        client_name: data.clientName || null,
+        birth_date: parseDateField(data.cifInvestorBirthDate || ''),
+        ktp_number: data.cifInvestorKTPNumber || null,
         npwp: data.npwp || null,
         email: data.email || null,
         phone: data.phone || null,
-        occupation: data.occupation || null,
-        company_name: data.companyName || data.company_name || null,
-        nature_of_business: data.natureOfBusiness || data.nature_of_business || null,
-        position: data.position || null,
+        occupation: data.cifInvestorOccupation || null,
+        company_name: data.cifCompanyName || null,
+        nature_of_business: data.cifInvestorNatureOfBusiness || null,
+        position: data.cifInvestorPosition || null,
         address: data.address || null,
-        ksei_single_id: data.kseiSingleID || data.ksei_single_id || null,
-        ksei_sub_account_no: data.kseiSubAccountNo || data.ksei_sub_account_no || null,
-        kpei_sub_account_no: data.kpeiSubAccountNo || data.kpei_sub_account_no || null,
-        stp_ksei_sub_account_no: data.stpKSEISubAccountNo || data.stp_ksei_sub_account_no || null,
-        stp_kpei_sub_account_no: data.stpKPEISubAccountNo || data.stp_kpei_sub_account_no || null,
-        sales_person_id_legacy: data.salesPersonID || data.sales_person_id_legacy || null,
-        sales_person_name: data.salesPersonName || data.sales_person_name || null,
-        referral_agents: data.referralAgents || data.referral_agents || null,
-        office_name: data.officeName || data.office_name || null,
-        client_status: data.clientStatus || data.client_status || 'Aktif',
-        client_status_description: data.clientStatusDescription || data.client_status_description || null,
-        active_date: parseDateField(data.activeDate || data.active_date || ''),
-        closed_date: parseDateField(data.closedDate || data.closed_date || ''),
+        ksei_single_id: data.kseiSingleID || null,
+        ksei_sub_account_no: data.kseiSubAccountNo || null,
+        kpei_sub_account_no: data.kpeiSubAccountNo || null,
+        stp_ksei_sub_account_no: data.stpKSEISubAccountNo || null,
+        stp_kpei_sub_account_no: data.stpKPEISubAccountNo || null,
+        sales_person_id_legacy: data.salesPersonID || null,
+        sales_person_name: data.salesPersonName || null,
+        referral_agents: data.referralAgents || null,
+        office_name: data.officeName || null,
+        office_id: data.officeID || null,
+        client_status: data.clientStatus || 'Aktif',
+        client_status_description: data.clientStatusDescription || null,
+        active_date: parseDateField(data.activeDate || ''),
+        closed_date: parseDateField(data.closedDate || ''),
+        securities: (data.securities || []).map((s, i) => ({
+          sekuritas_name:        s.sekuritasName        || 'Maybank Sekuritas',
+          rdn_bank_name:         s.rdnBankName          || null,
+          rdn_account_no:        s.rdnAccountNo         || null,
+          personal_bank_name:    s.personalBankName     || null,
+          personal_account_no:   s.personalAccountNo    || null,
+          personal_account_name: s.personalAccountName  || null,
+          sort_order:            i,
+        })),
       };
 
-      let customerId = docId;
+      let res;
       if (docId) {
-        const { error } = await window._supabase.from('customers').update(row).eq('id', docId);
-        if (error) throw error;
-        const idx = allCustomers.findIndex(c => c.id === docId);
-        if (idx !== -1) allCustomers[idx] = mapCustomerRow({ id: docId, ...row });
+        res = await window._api.put('customers.php', row, { id: docId });
+        const idx = allCustomers.findIndex(c => c.id == docId);
+        if (idx !== -1) allCustomers[idx] = mapCustomerRow({ id: docId, ...res.data });
         showToast('Data berhasil diperbarui', 'success');
       } else {
-        const { data: inserted, error } = await window._supabase.from('customers').insert(row).select().single();
-        if (error) throw error;
-        customerId = inserted.id;
-        allCustomers.unshift(mapCustomerRow(inserted));
+        res = await window._api.post('customers.php', row);
+        allCustomers.unshift(mapCustomerRow(res.data));
         showToast('Customer berhasil ditambahkan', 'success');
-      }
-
-      // Simpan / update customer_securities
-      if (data.securities && data.securities.length > 0) {
-        // Hapus semua securities lama untuk customer ini, lalu insert ulang
-        await window._supabase.from('customer_securities').delete().eq('customer_id', customerId);
-        const secRows = data.securities.map((s, i) => ({
-          customer_id:          customerId,
-          sekuritas_name:       s.sekuritasName || 'Maybank Sekuritas',
-          rdn_bank_name:        s.rdnBankName   || null,
-          rdn_account_no:       s.rdnAccountNo  || null,
-          personal_bank_name:   s.personalBankName   || null,
-          personal_account_no:  s.personalAccountNo  || null,
-          personal_account_name: s.personalAccountName || null,
-          sort_order:           i,
-        }));
-        const { error: secErr } = await window._supabase.from('customer_securities').insert(secRows);
-        if (secErr) console.error('Gagal simpan securities:', secErr);
       }
 
       document.getElementById('formModal').classList.remove('open');
@@ -801,9 +708,8 @@
   async function deleteCustomer(docId, name) {
     if (!confirm(`Hapus customer "${name}"? Tindakan ini tidak dapat dibatalkan.`)) return;
     try {
-      const { error } = await window._supabase.from('customers').delete().eq('id', docId);
-      if (error) throw error;
-      allCustomers = allCustomers.filter(c => c.id !== docId);
+      await window._api.delete('customers.php', { id: docId });
+      allCustomers = allCustomers.filter(c => c.id != docId);
       applyFilters(); updateStats(); populateFilters();
       showToast(`Customer "${name}" dihapus`, 'success');
     } catch (e) { showToast('Gagal menghapus data', 'error'); }
@@ -991,7 +897,7 @@
   }
 
   function openEditModal(id) {
-    const c = allCustomers.find(x => x.id === id);
+    const c = allCustomers.find(x => x.id == id);
     if (!c) return;
     document.getElementById('formModalTitle').textContent = 'Edit Customer';
     document.getElementById('editDocId').value = id;
@@ -1003,7 +909,7 @@
 
   // ===== DETAIL VIEW =====
   function openDetailModal(id) {
-    const c = allCustomers.find(x => x.id === id);
+    const c = allCustomers.find(x => x.id == id);
     if (!c) return;
     document.getElementById('detailModalTitle').textContent = c.clientName || '—';
     document.getElementById('detailEditBtn').onclick = () => {
@@ -1303,18 +1209,17 @@
     if (selectedIds.size === 0) return;
     const count = selectedIds.size;
     if (!confirm(`Hapus ${count} nasabah yang dipilih? Tindakan ini tidak dapat dibatalkan.`)) return;
-    let success = 0, fail = 0;
-    for (const id of [...selectedIds]) {
-      try {
-        await window._supabase.from('customers').delete().eq('id', id);
-        allCustomers = allCustomers.filter(c => c.id !== id);
-        success++;
-      } catch (e) { console.error(e); fail++; }
+    try {
+      const ids = [...selectedIds].join(',');
+      await window._api.delete('customers.php', { ids });
+      allCustomers = allCustomers.filter(c => !selectedIds.has(c.id) && !selectedIds.has(String(c.id)));
+      selectedIds.clear();
+      applyFilters(); updateStats(); populateFilters(); updateBulkBar();
+      showToast(`${count} nasabah berhasil dihapus`, 'success');
+    } catch (e) {
+      console.error(e);
+      showToast('Gagal menghapus data', 'error');
     }
-    selectedIds.clear();
-    applyFilters(); updateStats(); populateFilters(); updateBulkBar();
-    if (fail === 0) showToast(`${success} nasabah berhasil dihapus`, 'success');
-    else showToast(`${success} berhasil, ${fail} gagal dihapus`, 'error');
   }
 
   function updateStats() {
@@ -1472,26 +1377,24 @@
     return null;
   }
 
-  // Helper: upsert satu baris ke customer_securities dari data CSV row
-  // Hanya dijalankan kalau ada data rekening (SavingsID atau BankAccountNo)
-  async function upsertSecuritiesFromRow(customerId, row) {
-    const hasData = row.savingsID || row.bankAccountNo || row.bankAccountID || row.savingsBankID;
-    if (!customerId || !hasData) return;
-    // Hapus securities lama untuk customer ini (1 row per import = replace)
-    await window._supabase.from('customer_securities').delete().eq('customer_id', customerId);
-    // Tentukan sekuritas name: coba dari SavingsBankID lalu BankAccountID, fallback Maybank Sekuritas
-    // Di CSV tidak ada kolom nama sekuritas eksplisit — gunakan 'Maybank Sekuritas' sebagai default
-    const secRow = {
-      customer_id:          customerId,
-      sekuritas_name:       'Maybank Sekuritas',
-      rdn_bank_name:        row.savingsBankID  || null,  // SavingsBankID = Bank RDN (e.g. "BCA", "BNIIS")
-      rdn_account_no:       row.savingsID      || null,  // SavingsID = No Rekening RDN
-      personal_bank_name:   row.bankAccountID  || null,  // BankAccountID = Nama Bank rekening pribadi
-      personal_account_no:  row.bankAccountNo  || null,  // BankAccountNo = No Rekening
-      personal_account_name: row.bankAccountName || null, // BankAccountName = Nama di rekening
-      sort_order:           0,
-    };
-    await window._supabase.from('customer_securities').insert(secRow);
+  // Kolom yang didukung endpoint import (api/customers.php -> $allowed + securities)
+  const IMPORT_COLUMNS = [
+    'client_id','client_name','birth_date','ktp_number','npwp','email','phone',
+    'occupation','company_name','nature_of_business','position','address',
+    'ksei_single_id','ksei_sub_account_no','kpei_sub_account_no',
+    'stp_ksei_sub_account_no','stp_kpei_sub_account_no',
+    'sales_person_name','office_name',
+    'client_status','client_status_description','active_date','closed_date',
+    // securities (RDN & rekening pribadi)
+    'sekuritas_name','rdn_bank_name','rdn_account_no',
+    'personal_bank_name','personal_account_no','personal_account_name'
+  ];
+
+  // Escape satu nilai agar aman sebagai field CSV
+  function csvEscape(val) {
+    if (val === null || val === undefined) return '';
+    const s = String(val);
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
 
   async function importCSV() {
@@ -1499,132 +1402,71 @@
     const btn = document.getElementById('uploadSaveBtn');
     btn.textContent = 'Mengimport...'; btn.disabled = true;
     try {
-      let success = 0, errors = [];
-
-      // Pisahkan rows yang punya client_id (upsert) dan yang tidak (insert)
-      const rowsWithId = [], rowsWithoutId = [];
+      // Petakan csvRows (header broker PascalCase) ke kolom snake_case yang
+      // dikenali endpoint PHP, lalu bangun ulang CSV ternormalisasi.
+      const normalized = [];
       for (const row of csvRows) {
-        const supaRow = {
-          client_id:                 row.clientID || null,
-          client_name:               row.clientName || null,
-          birth_date:                parseDateField(row.cifInvestorBirthDate),
-          ktp_number:                row.cifInvestorKTPNumber || null,
-          npwp:                      row.npwp || null,
-          email:                     row.email || null,
-          phone:                     row.phone || null,
-          occupation:                row.cifInvestorOccupation || null,
-          company_name:              row.cifCompanyName || null,
-          nature_of_business:        row.cifInvestorNatureOfBusiness || null,
-          position:                  row.cifInvestorPosition || null,
-          address:                   row.address || null,
-          ksei_single_id:            row.kseiSingleID || null,
-          ksei_sub_account_no:       row.kseiSubAccountNo || null,
-          kpei_sub_account_no:       row.kpeiSubAccountNo || null,
-          stp_ksei_sub_account_no:   row.stpKSEISubAccountNo || null,
-          stp_kpei_sub_account_no:   row.stpKPEISubAccountNo || null,
-          sales_person_name:         row.salesPersonName || null,
-          office_name:               row.officeName || null,
+        const r = {
+          client_id:                 row.clientID || '',
+          client_name:               row.clientName || '',
+          birth_date:                parseDateField(row.cifInvestorBirthDate) || '',
+          ktp_number:                row.cifInvestorKTPNumber || '',
+          npwp:                      row.npwp || '',
+          email:                     row.email || '',
+          phone:                     row.phone || '',
+          occupation:                row.cifInvestorOccupation || '',
+          company_name:              row.cifCompanyName || '',
+          nature_of_business:        row.cifInvestorNatureOfBusiness || '',
+          position:                  row.cifInvestorPosition || '',
+          address:                   row.address || '',
+          ksei_single_id:            row.kseiSingleID || '',
+          ksei_sub_account_no:       row.kseiSubAccountNo || '',
+          kpei_sub_account_no:       row.kpeiSubAccountNo || '',
+          stp_ksei_sub_account_no:   row.stpKSEISubAccountNo || '',
+          stp_kpei_sub_account_no:   row.stpKPEISubAccountNo || '',
+          sales_person_name:         row.salesPersonName || '',
+          office_name:               row.officeName || '',
           client_status:             row.clientStatus || 'Aktif',
-          client_status_description: row.clientStatusDescription || null,
-          active_date:               parseDateField(row.activeDate),
-          closed_date:               parseDateField(row.closedDate),
+          client_status_description: row.clientStatusDescription || '',
+          active_date:               parseDateField(row.activeDate) || '',
+          closed_date:               parseDateField(row.closedDate) || '',
+          // securities dari field rekening CSV broker
+          sekuritas_name:            'Maybank',
+          rdn_bank_name:             row.savingsBankID || '',   // SavingsBankID = Bank RDN
+          rdn_account_no:            row.savingsID || '',        // SavingsID = No Rekening RDN
+          personal_bank_name:        row.bankAccountID || '',    // BankAccountID = Bank rekening pribadi
+          personal_account_no:       row.bankAccountNo || '',    // BankAccountNo = No Rekening pribadi
+          personal_account_name:     row.bankAccountName || '',  // BankAccountName = Nama di rekening
         };
-        Object.keys(supaRow).forEach(k => { if (supaRow[k] === null || supaRow[k] === '') delete supaRow[k]; });
-        if (!supaRow.client_name) continue;
-        if (supaRow.client_id) rowsWithId.push({ supaRow, row });
-        else rowsWithoutId.push({ supaRow, row });
+        if (!r.client_name) continue;
+        // Jika tidak ada data rekening sama sekali, kosongkan sekuritas_name
+        // supaya PHP tidak membuat row securities kosong.
+        if (!r.rdn_account_no && !r.rdn_bank_name &&
+            !r.personal_account_no && !r.personal_bank_name && !r.personal_account_name) {
+          r.sekuritas_name = '';
+        }
+        normalized.push(r);
       }
 
-      const BATCH = 50;
-
-      // Batch rows dengan client_id: update jika sudah ada, insert jika belum
-      for (let i = 0; i < rowsWithId.length; i += BATCH) {
-        const batch = rowsWithId.slice(i, i + BATCH);
-        btn.textContent = `Mengimport... (${Math.min(i + BATCH, rowsWithId.length)}/${rowsWithId.length})`;
-
-        for (const item of batch) {
-          const rowData = { ...item.supaRow };
-          const clientId = rowData.client_id;
-          delete rowData.client_id;
-
-          // Cek apakah client_id sudah ada di DB
-          const { data: existing } = await window._supabase
-            .from('customers')
-            .select('id')
-            .eq('client_id', clientId)
-            .maybeSingle();
-
-          if (existing) {
-            const { error: updErr } = await window._supabase
-              .from('customers')
-              .update(rowData)
-              .eq('client_id', clientId);
-            if (updErr) { errors.push(`Update ${clientId}: ${updErr.message}`); console.error('Update err:', updErr); }
-            else {
-              await upsertSecuritiesFromRow(existing.id, item.row);
-              success++;
-            }
-          } else {
-            const insertRow = { ...rowData, client_id: clientId };
-            const { data: inserted, error: insErr } = await window._supabase
-              .from('customers')
-              .insert(insertRow)
-              .select('id')
-              .single();
-            if (insErr) {
-              if (insErr.code === '23505') {
-                // Race condition — coba ambil id lalu upsert securities
-                const { data: rc } = await window._supabase.from('customers').select('id').eq('client_id', clientId).maybeSingle();
-                if (rc) await upsertSecuritiesFromRow(rc.id, item.row);
-                success++;
-              } else { errors.push(`Insert ${clientId}: ${insErr.message}`); console.error('Insert err:', insErr); }
-            } else {
-              await upsertSecuritiesFromRow(inserted.id, item.row);
-              success++;
-            }
-          }
-        }
+      if (!normalized.length) {
+        showToast('Tidak ada baris valid untuk diimport', 'error');
+        return;
       }
 
-      // Rows tanpa client_id: cek berdasarkan ktp_number atau email agar tidak duplikat
-      for (let i = 0; i < rowsWithoutId.length; i++) {
-        const item = rowsWithoutId[i];
-        if (i % BATCH === 0) btn.textContent = `Mengimport... (${i}/${rowsWithoutId.length})`;
-
-        const supaRow = item.supaRow;
-        let existingRow = null;
-
-        if (supaRow.ktp_number) {
-          const { data } = await window._supabase
-            .from('customers').select('id').eq('ktp_number', supaRow.ktp_number).maybeSingle();
-          existingRow = data;
-        }
-        if (!existingRow && supaRow.email) {
-          const { data } = await window._supabase
-            .from('customers').select('id').eq('email', supaRow.email).maybeSingle();
-          existingRow = data;
-        }
-
-        if (existingRow) {
-          const { error: updErr } = await window._supabase
-            .from('customers').update(supaRow).eq('id', existingRow.id);
-          if (updErr) { errors.push(`Update (no clientID): ${updErr.message}`); console.error('Update err:', updErr); }
-          else {
-            await upsertSecuritiesFromRow(existingRow.id, item.row);
-            success++;
-          }
-        } else {
-          const { data: inserted, error: insErr } = await window._supabase
-            .from('customers').insert(supaRow).select('id').single();
-          if (insErr) {
-            if (insErr.code === '23505') { success++; }
-            else { errors.push(`Insert: ${insErr.message}`); console.error('Insert error detail:', insErr); }
-          } else {
-            await upsertSecuritiesFromRow(inserted.id, item.row);
-            success++;
-          }
-        }
+      // Susun CSV: header + rows
+      const lines = [IMPORT_COLUMNS.join(',')];
+      for (const r of normalized) {
+        lines.push(IMPORT_COLUMNS.map(c => csvEscape(r[c])).join(','));
       }
+      const csvBlob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const file = new File([csvBlob], 'customers_import.csv', { type: 'text/csv' });
+
+      btn.textContent = `Mengimport ${normalized.length} data...`;
+
+      // Kirim ke endpoint PHP: POST /api/customers.php?import=csv
+      const res = await window._api.upload('customers.php', file, { import: 'csv' });
+      const imported = (res.data && res.data.imported) ?? res.imported ?? 0;
+      const errors   = (res.data && res.data.errors)   ?? res.errors   ?? [];
 
       // Reload data dari server supaya tampilan up-to-date
       await loadCustomers();
@@ -1632,17 +1474,16 @@
 
       if (errors.length > 0) {
         console.warn('Import errors:', errors);
-        // Tampilkan error detail di modal sebelum tutup
         const errMsg = errors.slice(0, 3).join('\n');
-        if (success === 0) {
+        if (imported === 0) {
           alert(`❌ Import gagal:\n\n${errMsg}\n\nCek Console (F12) untuk detail lengkap.`);
         } else {
-          showToast(`⚠️ ${success} berhasil, ${errors.length} gagal — cek Console (F12)`, 'error');
+          showToast(`⚠️ ${imported} berhasil, ${errors.length} gagal — cek Console (F12)`, 'error');
           document.getElementById('uploadModal').classList.remove('open');
         }
       } else {
         document.getElementById('uploadModal').classList.remove('open');
-        if (success > 0) showToast(`✅ ${success} customer berhasil diimport`, 'success');
+        if (imported > 0) showToast(`✅ ${imported} customer berhasil diimport`, 'success');
         else showToast('Tidak ada data yang diimport', 'error');
       }
     } catch (e) { console.error(e); showToast('Gagal import: ' + e.message, 'error'); }
@@ -1671,24 +1512,18 @@
   function exportCSV() {
     const data = filteredCustomers.length ? filteredCustomers : allCustomers;
     if (!data.length) { showToast('Tidak ada data untuk diexport', 'error'); return; }
-    const H = ['ClientID','ClientName','CIFInvestorBirthDate','OfficeID','OfficeName','DepartmentID',
-      'SalesPersonID','SalesPersonName','BankAccountID','BankAccountNo','BankAccountName',
-      'KSEISingleID','KSEISubAccountNo','KPEISubAccountNo','STPKSEISubAccountNo','STPKPEISubAccountNo',
-      'SavingsID','SavingsBankID','SavingsBankName','NPWP','Address','Email','Phone',
-      'CIFInvestorKTPNumber','CIFInvestorOccupation','CIFCompanyName','CIFInvestorNatureOfBusiness',
-      'CIFInvestorPosition','ClientStatusDescription','ClientStatus','ClosedDate','CreatedDate','ActiveDate'];
-    const K = ['clientID','clientName','cifInvestorBirthDate','officeID','officeName','departmentID',
-      'salesPersonID','salesPersonName','bankAccountID','bankAccountNo','bankAccountName',
-      'kseiSingleID','kseiSubAccountNo','kpeiSubAccountNo','stpKSEISubAccountNo','stpKPEISubAccountNo',
-      'savingsID','savingsBankID','savingsBankName','npwp','address','email','phone',
-      'cifInvestorKTPNumber','cifInvestorOccupation','cifCompanyName','cifInvestorNatureOfBusiness',
-      'cifInvestorPosition','clientStatusDescription','clientStatus','closedDate','createdDate','activeDate'];
-    const rows = data.map(c => K.map(k => `"${(c[k]||'').toString().replace(/"/g,'""')}"`).join(','));
-    const csv = [H.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `customer_fawzpro_${new Date().toISOString().slice(0,10)}.csv`; a.click();
-    showToast(`${data.length} data berhasil diexport`, 'success');
+    // Build filter params to let server export the same filtered set
+    const params = {};
+    const search = document.getElementById('searchInput').value.trim();
+    const status = document.getElementById('filterStatus').value;
+    const sales  = document.getElementById('filterSales').value;
+    const office = document.getElementById('filterOffice').value;
+    if (search) params.q      = search;
+    if (status) params.status = status;
+    if (sales)  params.sales  = sales;
+    if (office) params.office = office;
+    window._api.exportCsv('customers.php', params);
+    showToast(`Export dimulai`, 'success');
   }
 
   // ===== UTILS =====

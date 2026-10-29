@@ -12,7 +12,7 @@
   <style>
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
     :root {
-      --navy:#0d0d2b; --gold:#f5a623; --gold-light:#ffc857;
+      --navy:#1b4332; --gold:#f5a623; --gold-light:#ffd43b;
       --ink:#1a1a1a; --slate:#5d5b54; --stone:#a4a097;
       --canvas:#ffffff; --surface:#f6f5f4; --hairline:#e5e3df;
       --tint-lavender:#e6e0f5; --tint-mint:#d9f3e1;
@@ -24,7 +24,7 @@
     @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
     .page { max-width:1160px; margin:0 auto; padding:32px 24px 60px; }
     /* TOPBAR */
-    .topbar { background:linear-gradient(135deg,var(--navy) 0%,#1a0e4a 60%,#0d1a3a 100%); padding:0 28px; height:64px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; box-shadow:0 2px 16px rgba(0,0,0,0.3); }
+    .topbar { background:linear-gradient(135deg,var(--navy) 0%,#166534 60%,#14532d 100%); padding:0 28px; height:64px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; box-shadow:0 2px 16px rgba(0,0,0,0.3); }
     .topbar-brand img { height:40px; object-fit:contain; }
     .topbar-right { display:flex; align-items:center; gap:14px; }
     .topbar-user { display:flex; align-items:center; gap:8px; }
@@ -60,16 +60,16 @@
     .kpi-card.yellow {background:var(--tint-yellow);border-color:#f0d870}
     .kpi-label { font-size:11px; font-weight:700; color:var(--slate); text-transform:uppercase; letter-spacing:.8px; margin-bottom:10px; }
     .kpi-accent { width:20px; height:2px; border-radius:2px; margin-bottom:8px; }
-    .kpi-accent.purple{background:#7b3ff2} .kpi-accent.green{background:var(--green)} .kpi-accent.blue{background:#2980b9} .kpi-accent.orange{background:var(--orange)} .kpi-accent.gold{background:var(--gold)}
-    .kpi-value { font-size:32px; font-weight:700; color:#0a0a22; letter-spacing:-1px; line-height:1; }
+    .kpi-accent.purple{background:#15803d} .kpi-accent.green{background:var(--green)} .kpi-accent.blue{background:#2980b9} .kpi-accent.orange{background:var(--orange)} .kpi-accent.gold{background:var(--gold)}
+    .kpi-value { font-size:32px; font-weight:700; color:#0b2a1d; letter-spacing:-1px; line-height:1; }
     .kpi-value.sm { font-size:22px; letter-spacing:-.5px; }
     .kpi-sub { font-size:12px; color:var(--stone); margin-top:6px; font-weight:500; }
     .kpi-icon { position:absolute; right:16px; top:16px; font-size:1.6rem; opacity:.35; }
     /* CHARTS */
-    .section-title { font-size:16px; font-weight:700; color:#0a0a22; margin-bottom:14px; letter-spacing:-.3px; }
+    .section-title { font-size:16px; font-weight:700; color:#0b2a1d; margin-bottom:14px; letter-spacing:-.3px; }
     .two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px; animation:fadeUp .4s .2s ease both; }
     .chart-card { background:var(--canvas); border:1px solid var(--hairline); border-radius:14px; padding:20px; }
-    .chart-card-title { font-size:13px; font-weight:700; color:#0a0a22; margin-bottom:4px; }
+    .chart-card-title { font-size:13px; font-weight:700; color:#0b2a1d; margin-bottom:4px; }
     .chart-card-sub { font-size:11px; color:var(--stone); margin-bottom:16px; }
     .chart-wrap { position:relative; height:200px; }
     /* TABLE */
@@ -157,7 +157,7 @@
   <div class="section-title">👤 Daftar Client</div>
   <div class="table-card">
     <div class="table-head">
-      <span style="font-size:13px;font-weight:700;color:#0a0a22;">Client Terdaftar</span>
+      <span style="font-size:13px;font-weight:700;color:#0b2a1d;">Client Terdaftar</span>
       <input type="text" id="clientSearch" placeholder="Cari nama / kode..." onkeyup="filterClients()"
         style="padding:7px 12px;border:1px solid var(--hairline);border-radius:8px;font-size:12px;outline:none;font-family:Inter,sans-serif;"/>
     </div>

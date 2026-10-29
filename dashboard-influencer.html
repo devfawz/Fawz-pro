@@ -12,7 +12,7 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --navy:#0d0d2b; --gold:#f5a623; --gold-light:#ffc857;
+      --navy:#1b4332; --gold:#f5a623; --gold-light:#ffd43b;
       --ink:#1a1a1a; --slate:#5d5b54; --stone:#a4a097;
       --canvas:#ffffff; --surface:#f6f5f4; --hairline:#e5e3df;
       --tint-lavender:#e6e0f5; --tint-mint:#d9f3e1;
@@ -23,7 +23,7 @@
     @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
     .page { max-width:1160px; margin:0 auto; padding:32px 24px 60px; }
     /* TOPBAR */
-    .topbar { background:linear-gradient(135deg,var(--navy) 0%,#1a0e4a 60%,#0d1a3a 100%); padding:0 28px; height:64px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; box-shadow:0 2px 16px rgba(0,0,0,0.3); }
+    .topbar { background:linear-gradient(135deg,var(--navy) 0%,#166534 60%,#14532d 100%); padding:0 28px; height:64px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; box-shadow:0 2px 16px rgba(0,0,0,0.3); }
     .topbar-brand img { height:40px; object-fit:contain; }
     .topbar-right { display:flex; align-items:center; gap:14px; }
     .topbar-user { display:flex; align-items:center; gap:8px; }
@@ -35,7 +35,7 @@
     .logout-btn { background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.75); padding:6px 14px; border-radius:8px; font-size:.8rem; cursor:pointer; transition:all .2s; }
     .logout-btn:hover { background:rgba(255,255,255,0.18); color:#fff; }
     /* HERO */
-    .hero-card { background:linear-gradient(135deg,var(--navy) 0%,#1a0e4a 100%); border-radius:16px; padding:28px 32px; display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:24px; position:relative; overflow:hidden; animation:fadeUp .4s ease both; }
+    .hero-card { background:linear-gradient(135deg,var(--navy) 0%,#166534 100%); border-radius:16px; padding:28px 32px; display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:24px; position:relative; overflow:hidden; animation:fadeUp .4s ease both; }
     .hero-card::before { content:''; position:absolute; width:320px; height:320px; border-radius:50%; background:radial-gradient(circle,rgba(245,166,35,.12) 0%,transparent 70%); right:-80px; top:-80px; pointer-events:none; }
     .hero-left { position:relative; z-index:1; }
     .hero-greeting { font-size:12px; font-weight:600; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
@@ -58,19 +58,19 @@
     .kpi-card.yellow{ background:var(--tint-yellow);border-color:#f0d870; }
     .kpi-label { font-size:11px; font-weight:700; color:var(--slate); text-transform:uppercase; letter-spacing:.8px; margin-bottom:10px; }
     .kpi-accent { width:20px; height:2px; border-radius:2px; margin-bottom:8px; }
-    .kpi-accent.purple{background:#7b3ff2} .kpi-accent.green{background:var(--green)} .kpi-accent.orange{background:var(--orange)} .kpi-accent.gold{background:var(--gold)}
-    .kpi-value { font-size:32px; font-weight:700; color:#0a0a22; letter-spacing:-1px; line-height:1; }
+    .kpi-accent.purple{background:#15803d} .kpi-accent.green{background:var(--green)} .kpi-accent.orange{background:var(--orange)} .kpi-accent.gold{background:var(--gold)}
+    .kpi-value { font-size:32px; font-weight:700; color:#0b2a1d; letter-spacing:-1px; line-height:1; }
     .kpi-value.sm { font-size:22px; letter-spacing:-.5px; }
     .kpi-sub { font-size:12px; color:var(--stone); margin-top:6px; font-weight:500; }
     .kpi-icon { position:absolute; right:16px; top:16px; font-size:1.6rem; opacity:.35; }
     /* REFERRAL BOX */
     .referral-box { background:var(--canvas); border:1px solid var(--hairline); border-radius:14px; padding:18px 20px; display:flex; align-items:center; gap:12px; margin-bottom:24px; animation:fadeUp .4s .2s ease both; }
     .referral-box-label { font-size:11px; font-weight:700; color:var(--slate); text-transform:uppercase; letter-spacing:.8px; margin-bottom:4px; }
-    .referral-link-text { font-size:.9rem; color:#0a0a22; font-weight:500; flex:1; word-break:break-all; }
+    .referral-link-text { font-size:.9rem; color:#0b2a1d; font-weight:500; flex:1; word-break:break-all; }
     .copy-btn { background:var(--gold); color:#fff; border:none; padding:9px 18px; border-radius:9px; font-weight:600; font-size:.83rem; cursor:pointer; white-space:nowrap; transition:background .2s,transform .15s; font-family:'Inter',sans-serif; }
     .copy-btn:hover { background:#e8931a; transform:scale(1.03); }
     /* TIER */
-    .section-title { font-size:16px; font-weight:700; color:#0a0a22; margin-bottom:14px; letter-spacing:-.3px; }
+    .section-title { font-size:16px; font-weight:700; color:#0b2a1d; margin-bottom:14px; letter-spacing:-.3px; }
     /* SOCIAL MEDIA */
     .section-sub { font-size:12px; color:var(--stone); font-weight:500; margin-left:8px; }
     .socmed-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:24px; animation:fadeUp .4s .15s ease both; }
@@ -79,7 +79,7 @@
     .socmed-icon { width:40px; height:40px; margin:0 auto 10px; display:flex; align-items:center; justify-content:center; }
     .socmed-name { font-size:11px; font-weight:700; color:var(--slate); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
     .socmed-handle { font-size:11px; color:var(--stone); margin-bottom:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .socmed-followers { font-size:20px; font-weight:700; color:#0a0a22; letter-spacing:-.5px; }
+    .socmed-followers { font-size:20px; font-weight:700; color:#0b2a1d; letter-spacing:-.5px; }
     .socmed-followers-label { font-size:10px; color:var(--stone); font-weight:500; }
     .socmed-badge { display:inline-block; font-size:10px; font-weight:600; padding:2px 8px; border-radius:10px; margin-top:6px; }
     .socmed-badge.connected { background:#d9f3e1; color:#1aae39; }
@@ -87,7 +87,7 @@
     /* CHARTS */
     .two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px; animation:fadeUp .4s .25s ease both; }
     .chart-card { background:var(--canvas); border:1px solid var(--hairline); border-radius:14px; padding:20px; }
-    .chart-card-title { font-size:13px; font-weight:700; color:#0a0a22; margin-bottom:4px; }
+    .chart-card-title { font-size:13px; font-weight:700; color:#0b2a1d; margin-bottom:4px; }
     .chart-card-sub { font-size:11px; color:var(--stone); margin-bottom:16px; }
     .chart-wrap { position:relative; height:200px; }
     /* HISTORY */
@@ -102,18 +102,18 @@
     /* BANK INFO */
     .bank-card { background:var(--canvas); border:1px solid var(--hairline); border-radius:14px; padding:22px 24px; display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:24px; animation:fadeUp .4s .3s ease both; }
     .bank-info-left { display:flex; align-items:center; gap:16px; }
-    .bank-icon-wrap { width:48px; height:48px; border-radius:12px; background:linear-gradient(135deg,var(--navy),#1a0e4a); display:flex; align-items:center; justify-content:center; font-size:1.4rem; flex-shrink:0; }
+    .bank-icon-wrap { width:48px; height:48px; border-radius:12px; background:linear-gradient(135deg,var(--navy),#166534); display:flex; align-items:center; justify-content:center; font-size:1.4rem; flex-shrink:0; }
     .bank-detail-label { font-size:11px; font-weight:700; color:var(--stone); text-transform:uppercase; letter-spacing:.8px; margin-bottom:3px; }
-    .bank-detail-name { font-size:15px; font-weight:700; color:#0a0a22; margin-bottom:2px; }
+    .bank-detail-name { font-size:15px; font-weight:700; color:#0b2a1d; margin-bottom:2px; }
     .bank-detail-rekening { font-size:22px; font-weight:700; color:var(--navy); letter-spacing:2px; }
     .bank-detail-atas-nama { font-size:12px; color:var(--stone); font-weight:500; margin-top:4px; }
     .bank-empty { font-size:13px; color:var(--stone); font-style:italic; }
     .bank-edit-btn { background:var(--navy); color:#fff; border:none; padding:10px 20px; border-radius:10px; font-weight:600; font-size:.83rem; cursor:pointer; transition:background .2s,transform .15s; font-family:'Inter',sans-serif; white-space:nowrap; }
-    .bank-edit-btn:hover { background:#1a0e4a; transform:scale(1.03); }
+    .bank-edit-btn:hover { background:#166534; transform:scale(1.03); }
     /* MODAL BANK */
     .bank-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; align-items:center; justify-content:center; }
     .bank-modal-box { background:#fff; border-radius:16px; padding:28px; width:420px; max-width:92vw; }
-    .bank-modal-title { font-size:15px; font-weight:700; color:#0a0a22; margin-bottom:18px; }
+    .bank-modal-title { font-size:15px; font-weight:700; color:#0b2a1d; margin-bottom:18px; }
     .bank-field-label { font-size:11px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.8px; display:block; margin-bottom:6px; }
     .bank-field-input { width:100%; padding:11px 14px; border:1.5px solid #e0e0ef; border-radius:10px; font-size:14px; outline:none; font-family:Inter,sans-serif; margin-bottom:14px; transition:border-color .2s; }
     .bank-field-input:focus { border-color:var(--navy); }
@@ -293,7 +293,7 @@
 <!-- SOCIAL MEDIA MODAL -->
 <div id="smModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:16px;padding:28px;width:360px;max-width:90vw;">
-    <div style="font-size:15px;font-weight:700;color:#0a0a22;margin-bottom:16px;">Edit Social Media</div>
+    <div style="font-size:15px;font-weight:700;color:#0b2a1d;margin-bottom:16px;">Edit Social Media</div>
     <input type="hidden" id="smPlatform"/>
     <label style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.8px;display:block;margin-bottom:6px;">Handle / Username</label>
     <input id="smHandle" type="text" placeholder="@username" style="width:100%;padding:11px 14px;border:1.5px solid #e0e0ef;border-radius:10px;font-size:14px;outline:none;font-family:Inter,sans-serif;margin-bottom:12px;"/>
@@ -397,7 +397,7 @@
   // CHARTS
   function initCharts(){
     const m6=['Jan','Feb','Mar','Apr','Mei','Jun'];
-    new Chart(document.getElementById('chartReferral'),{type:'line',data:{labels:m6,datasets:[{label:'Referral Baru',data:[3,7,12,9,18,14],borderColor:'#7b3ff2',backgroundColor:'rgba(123,63,242,.08)',tension:.4,fill:true,pointRadius:4,pointBackgroundColor:'#7b3ff2'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#f0ede9'},ticks:{font:{size:11}}},x:{grid:{display:false},ticks:{font:{size:11}}}}}});
+    new Chart(document.getElementById('chartReferral'),{type:'line',data:{labels:m6,datasets:[{label:'Referral Baru',data:[3,7,12,9,18,14],borderColor:'#15803d',backgroundColor:'rgba(21,128,61,.08)',tension:.4,fill:true,pointRadius:4,pointBackgroundColor:'#15803d'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#f0ede9'},ticks:{font:{size:11}}},x:{grid:{display:false},ticks:{font:{size:11}}}}}});
     new Chart(document.getElementById('chartKomisi'),{type:'bar',data:{labels:m6,datasets:[{label:'Komisi',data:[500000,1200000,2100000,1800000,3200000,2700000],backgroundColor:'rgba(245,166,35,.75)',borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#f0ede9'},ticks:{font:{size:11},callback:v=>v>=1000000?(v/1000000).toFixed(1)+'Jt':v>=1000?(v/1000)+'K':v}},x:{grid:{display:false},ticks:{font:{size:11}}}}}});
   }
 

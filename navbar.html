@@ -3,15 +3,15 @@
 <head>
   <script src="config.js"></script>
   <meta charset="UTF-8"/>
-  <title>Fawz Pro | Navbar</title>
+  <title>Sales Petik Profit | Navbar</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --navy: #0d0d2b;
+      --navy: #1b4332;
       --gold: #f5a623;
-      --gold-light: #ffc857;
+      --gold-light: #ffd43b;
       --nav-h: 68px;
     }
 
@@ -21,7 +21,7 @@
     .fawz-navbar {
       position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
       height: var(--nav-h);
-      background: linear-gradient(90deg, var(--navy) 0%, #1a0e4a 60%, #0d0d2b 100%);
+      background: linear-gradient(90deg, var(--navy) 0%, #166534 60%, #1b4332 100%);
       display: flex; align-items: center; justify-content: space-between;
       padding: 0 28px;
       box-shadow: 0 2px 20px rgba(0,0,0,0.4);
@@ -172,7 +172,7 @@
       color: #fff; font-size: .62rem; font-weight: 700;
       border-radius: 10px; padding: 0 4px;
       display: flex; align-items: center; justify-content: center;
-      border: 2px solid #0d0d2b;
+      border: 2px solid #1b4332;
       animation: pulse-badge 1.8s infinite;
     }
     @keyframes pulse-badge {
@@ -274,7 +274,7 @@
       color: #fff; font-size: .6rem; font-weight: 700;
       border-radius: 10px; padding: 0 4px;
       display: none; align-items: center; justify-content: center;
-      border: 2px solid #0d0d2b;
+      border: 2px solid #1b4332;
       z-index: 2;
       animation: pulse-badge 1.8s infinite;
     }
@@ -485,10 +485,10 @@
 <nav class="fawz-navbar" id="fawzNavbar">
   <!-- Brand -->
   <a class="nav-brand" href="dashboard.html">
-    <img src="assets/logo/fawz-white.png" alt="FAWZ Pro"
+    <img src="assets/logo/fawz-white.png" alt="Petik Profit"
       onerror="this.style.display='none'; document.getElementById('brandFallback').style.display='flex'"/>
     <div id="brandFallback" style="display:none; align-items:center; gap:6px;">
-      <span class="brand-fallback">FAWZ</span>
+      <span class="brand-fallback">PETIK PROFIT</span>
       <span class="brand-badge">PRO</span>
     </div>
   </a>
@@ -551,7 +551,7 @@
           <div class="dropdown-label">Saham</div>
           <a class="dropdown-item" href="saham.html"><span class="d-icon"></span> Transaksi Saham</a>
           <a class="dropdown-item" href="saham-ranking.html"><span class="d-icon"></span> Rekap Transaksi</a>
-          <a class="dropdown-item" href="fawz-point.html"><span class="d-icon"></span> Fawz Point</a>
+          <a class="dropdown-item" href="fawz-point.html"><span class="d-icon"></span> Point</a>
         </div>
         <div class="dropdown-section">
           <div class="dropdown-label">Reksadana</div>
@@ -615,7 +615,7 @@
 
       <div class="notif-panel" id="notifPanel">
         <div class="notif-panel-header">
-          <span style="font-weight:700;font-size:.9rem;color:#0d0d2b;">Order Bonds Masuk</span>
+          <span style="font-weight:700;font-size:.9rem;color:#1b4332;">Order Bonds Masuk</span>
           <span class="notif-mark-all" onclick="markAllRead(event)">Tandai semua dibaca</span>
         </div>
         <div class="notif-list" id="notifList">
@@ -768,7 +768,7 @@
         <a class="mob-link" href="obligasi-coupon-calendar.html">Kalender Kupon</a>
         <a class="mob-link" href="saham.html">Transaksi Saham</a>
         <a class="mob-link" href="saham-ranking.html">Rekap Transaksi</a>
-        <a class="mob-link" href="fawz-point.html">Fawz Point</a>
+        <a class="mob-link" href="fawz-point.html">Point</a>
         <span class="mob-link mob-link-soon">Data Reksadana <span class="soon-badge">Soon</span></span>
         <span class="mob-link mob-link-soon">Order Reksadana <span class="soon-badge">Soon</span></span>
         <span class="mob-link mob-link-soon">Waran Terstruktur <span class="soon-badge">Soon</span></span>
