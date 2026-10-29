@@ -106,13 +106,7 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
     document.head.appendChild(style);
   })();
 
-  /* ── 0b. API CLIENT GUARD — pastikan window._api sudah siap ── */
-  (function() {
-    // config.js sudah inject window._api — tidak perlu Supabase SDK sama sekali
-    if (!window._api) {
-      console.warn('[Fawz navbar] window._api belum siap, menunggu config.js...');
-    }
-  })();
+
 
   /* ── 1. SESSION SYNC ── */
   const ss  = sessionStorage.getItem('fawz_user');
@@ -356,11 +350,9 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
 
   /* ── 4b. TASK PENDING INDICATOR (semua role) ── */
   function initTaskIndicator(user) {
-    // Semua role yang punya akses job-report
     const allowedRoles = ['admin', 'treasury', 'head_account', 'sales', 'head_sales'];
     if (!allowedRoles.includes(user.role)) return;
-
-    waitForApi(() => {
+    waitForSupabase(() => {
       fetchPendingTasks(user);
       setInterval(() => fetchPendingTasks(user), 60000);
     });
@@ -370,45 +362,24 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
     if (!window._supabase) return;
     try {
       let pendingCount = 0;
-
       if (user.role === 'head_account') {
-        // Head account: hitung semua task pending
         const { count: c, error } = await window._supabase
           .from('job_tasks')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'pending');
         if (!error) pendingCount = c || 0;
       } else {
-        // Fetch semua task pending untuk role ini (gabung assigned_to null + user spesifik)
         const { data: taskData, error: taskErr } = await window._supabase
           .from('job_tasks')
           .select('id, assigned_to')
           .eq('status', 'pending')
           .eq('assigned_role', user.role);
-
         if (!taskErr && taskData) {
-          // Filter: assigned_to null (untuk semua role) ATAU assigned_to = username saya
           pendingCount = taskData.filter(t =>
             t.assigned_to === null || t.assigned_to === user.username
           ).length;
         }
       }
-
-  /* ── 4b. TASK PENDING INDICATOR ── */
-  function initTaskIndicator(user) {
-    const allowedRoles = ['admin', 'treasury', 'head_account', 'sales', 'head_sales'];
-    if (!allowedRoles.includes(user.role)) return;
-    waitForApi(() => {
-      fetchPendingTasks(user);
-      setInterval(() => fetchPendingTasks(user), 60000);
-    });
-  }
-
-  async function fetchPendingTasks(user) {
-    if (!window._api) return;
-    try {
-      const res = await window._api.get('jobs.php', { scope: 'pending_count' });
-      const pendingCount = res.data?.count || 0;
       const badge    = document.getElementById('jobReportBadge');
       const mobBadge = document.getElementById('mobJobReportBadge');
       if (badge)    { badge.textContent = pendingCount > 99 ? '99+' : pendingCount; badge.style.display = pendingCount > 0 ? 'inline-flex' : 'none'; }
@@ -441,29 +412,32 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
     bell.style.display = 'flex';
     const stored = localStorage.getItem('fawz_notif_read_' + (user.username || user.name));
     _notifReadIds = stored ? JSON.parse(stored) : [];
-    waitForApi(() => {
+    waitForSupabase(() => {
       fetchPendingOrders(user);
       setInterval(() => fetchPendingOrders(user), 60000);
     });
   }
 
-  function waitForApi(cb, tries) {
+  function waitForSupabase(cb, tries) {
     tries = tries || 0;
-    if (window._api) { cb(); return; }
+    if (window._supabase) { cb(); return; }
     if (tries > 20) return;
-    setTimeout(() => waitForApi(cb, tries + 1), 300);
+    setTimeout(() => waitForSupabase(cb, tries + 1), 300);
   }
 
   async function fetchPendingOrders(user) {
-    if (!window._api) return;
+    if (!window._supabase) return;
     try {
-      const res  = await window._api.get('bonds.php', { status: 'pending', per_page: 20 });
-      const data = res.data || [];      if (mobBadge) { mobBadge.textContent = pendingCount > 99 ? '99+' : pendingCount; mobBadge.style.display = pendingCount > 0 ? 'inline-flex' : 'none'; }
-      updateAvatarNotifRing(pendingCount);
-    } catch(e) { /* silent */ }
-  }
+      const { data, error } = await window._supabase
+        .from('bond_transactions')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      const safeData = data || [];
 
-      const unreadCount = data.filter(o => !_notifReadIds.includes(o.id)).length;
+      const unreadCount = safeData.filter(o => !_notifReadIds.includes(o.id)).length;
 
       // Update badge
       const badge = document.getElementById('notifBadge');
@@ -480,7 +454,7 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
       const list = document.getElementById('notifList');
       if (!list) return;
 
-      if (data.length === 0) {
+      if (safeData.length === 0) {
         list.innerHTML = '<div class="notif-empty">✅ Tidak ada order pending</div>';
         return;
       }
@@ -488,7 +462,7 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
       // Escape helper untuk mencegah XSS
       const _esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
-      list.innerHTML = data.map(o => {
+      list.innerHTML = safeData.map(o => {
         const isUnread = !_notifReadIds.includes(o.id);
         const nominal  = Number(o.nominal || 0).toLocaleString('id-ID');
         const seri     = _esc(o.seri || '—');
@@ -613,10 +587,6 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
 
   /* ── 5. GLOBAL FUNCTIONS ── */
   window.doLogout = function () {
-    const raw2 = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
-    if (raw2 && window._api) {
-      try { window._api.post('auth.php?action=logout', {}); } catch(e) {}
-    }
     sessionStorage.removeItem('fawz_user');
     localStorage.removeItem('fawz_user_remember');
     window.location.href = 'login.html';
@@ -663,17 +633,20 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
     const allowedRoles = ['admin', 'head_account', 'head_sales'];
     if (!allowedRoles.includes(user.role)) return;
 
-    waitForApi(() => {
+    waitForSupabase(() => {
       checkPendingAmbassador();
       setInterval(checkPendingAmbassador, 60000);
     });
   }
 
   async function checkPendingAmbassador() {
-    if (!window._api) return;
+    if (!window._supabase) return;
     try {
-      const res   = await window._api.get('referral.php', { scope: 'registrations', status: 'pending', per_page: 1 });
-      const count = res.total || 0;
+      const { count, error } = await window._supabase
+        .from('profit_ambassador_registrations')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      const countVal = (!error && count) ? count : 0;
 
       const navPetikProfit = document.getElementById('navPetikProfit');
       // Cari dropdown-item Profit Ambassador di dalam navPetikProfit
@@ -684,7 +657,7 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
         });
       }
 
-      if (count && count > 0) {
+      if (countVal && countVal > 0) {
         // Tambah class blinking ke Petik Profit nav-item
         if (navPetikProfit) navPetikProfit.classList.add('has-pa-pending');
         // Tambah class blinking ke Profit Ambassador dropdown-item
@@ -694,10 +667,10 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
           if (!paItem.querySelector('.pa-pending-badge')) {
             const badge = document.createElement('span');
             badge.className = 'pa-pending-badge';
-            badge.textContent = count > 99 ? '99+' : count;
+            badge.textContent = countVal > 99 ? '99+' : countVal;
             paItem.appendChild(badge);
           } else {
-            paItem.querySelector('.pa-pending-badge').textContent = count > 99 ? '99+' : count;
+            paItem.querySelector('.pa-pending-badge').textContent = countVal > 99 ? '99+' : countVal;
           }
         }
 
@@ -706,10 +679,10 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
           if (!mobEl.querySelector('.pa-pending-badge')) {
             const badge = document.createElement('span');
             badge.className = 'pa-pending-badge';
-            badge.textContent = count > 99 ? '99+' : count;
+            badge.textContent = countVal > 99 ? '99+' : countVal;
             mobEl.appendChild(badge);
           } else {
-            mobEl.querySelector('.pa-pending-badge').textContent = count > 99 ? '99+' : count;
+            mobEl.querySelector('.pa-pending-badge').textContent = countVal > 99 ? '99+' : countVal;
           }
         });
       } else {
@@ -727,19 +700,23 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
 
   /* ── 4c. INFLUENCER & REFERRAL MEMBERSHIP CHECK ── */
   function initMembershipCheck(user) {
-    waitForApi(() => {
+    waitForSupabase(() => {
       checkInfluencerStatus(user);
       checkReferralStatus(user);
     });
   }
 
   async function checkInfluencerStatus(user) {
-    if (!window._api) return;
+    if (!window._supabase) return;
     try {
       const clientCode = user.client_code || user.client_id || '';
       if (!clientCode) return;
-      const res = await window._api.get('influencer.php', { scope: 'registrations', q: clientCode });
-      if (res.data && res.data.length > 0) {
+      const { count, error } = await window._supabase
+        .from('influencer_registrations')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_code', clientCode)
+        .eq('status', 'approved');
+      if (!error && count > 0) {
         const link    = document.getElementById('influencerMenuLink');
         const mobLink = document.getElementById('mobInfluencerLink');
         if (link)    { link.href = 'dashboard-influencer.html'; link.innerHTML = '<span class="d-icon">📣</span> Dashboard'; }
@@ -749,12 +726,15 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
   }
 
   async function checkReferralStatus(user) {
-    if (!window._api) return;
+    if (!window._supabase) return;
     try {
       const agentCode = user.agent_code || user.client_code || user.client_id || '';
       if (!agentCode) return;
-      const res = await window._api.get('referral.php', { scope: 'agents', agent_code: agentCode });
-      if (res.data && res.data.length > 0) {
+      const { count, error } = await window._supabase
+        .from('referral_agents')
+        .select('id', { count: 'exact', head: true })
+        .eq('agent_code', agentCode);
+      if (!error && count > 0) {
         const link    = document.getElementById('referralMenuLink');
         const mobLink = document.getElementById('mobReferralLink');
         if (link)    { link.href = 'dashboard-referral.html'; link.innerHTML = '<span class="d-icon">🤝</span> Dashboard'; }
