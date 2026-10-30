@@ -550,8 +550,8 @@
       bankAccountID: '',
     };
 
-    // Attach securities (joined array from API)
-    const secArr = Array.isArray(r.securities) ? r.securities : [];
+    // Attach securities (joined array dari Supabase — tabel customer_securities)
+    const secArr = Array.isArray(r.customer_securities) ? r.customer_securities : [];
     const sec = secArr[0];
     if (sec) {
       mapped.rdnBankName    = sec.rdn_bank_name      || '';
@@ -647,7 +647,7 @@
 
       let query = window._supabase
         .from('customers')
-        .select('*, securities(*)')
+        .select('*, customer_securities(*)')
         .order('created_at', { ascending: false });
 
       // Role-based filter: sales hanya bisa lihat data miliknya
@@ -728,12 +728,12 @@
           personal_account_name: s.personalAccountName  || null,
           sort_order:            i,
         }));
-        await window._supabase.from('securities').delete().eq('customer_id', docId);
-        if (secRows.length) await window._supabase.from('securities').insert(secRows);
+        await window._supabase.from('customer_securities').delete().eq('customer_id', docId);
+        if (secRows.length) await window._supabase.from('customer_securities').insert(secRows);
 
         const { data: fresh } = await window._supabase
           .from('customers')
-          .select('*, securities(*)')
+          .select('*, customer_securities(*)')
           .eq('id', docId)
           .single();
         const idx = allCustomers.findIndex(c => c.id == docId);
@@ -758,11 +758,11 @@
           personal_account_name: s.personalAccountName  || null,
           sort_order:            i,
         }));
-        if (secRows.length) await window._supabase.from('securities').insert(secRows);
+        if (secRows.length) await window._supabase.from('customer_securities').insert(secRows);
 
         const { data: fresh } = await window._supabase
           .from('customers')
-          .select('*, securities(*)')
+          .select('*, customer_securities(*)')
           .eq('id', inserted.id)
           .single();
         allCustomers.unshift(mapCustomerRow(fresh || inserted));
