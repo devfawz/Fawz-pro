@@ -29,8 +29,7 @@
     }
     ensureSupabase();
     window.addEventListener('DOMContentLoaded', () => {
-      ensureSupabase();
-      loadAll();
+      waitForSupabase(() => loadAll());
     });
   </script>
 
