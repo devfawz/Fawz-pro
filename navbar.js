@@ -643,7 +643,7 @@ console.log('[Fawz navbar.js] v2.5.0 loaded');
     if (!window._supabase) return;
     try {
       const { count, error } = await window._supabase
-        .from('profit_ambassador_registrations')
+        .from('referral_registrations')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'pending');
       const countVal = (!error && count) ? count : 0;
