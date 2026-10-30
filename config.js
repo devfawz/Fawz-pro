@@ -10,13 +10,22 @@ window.__FAWZ_CONFIG__ = {
   petikProfitUrl: 'https://pp.ikutin.id',
 };
 
+/* ── waitForSupabase ──
+   Expose SEBELUM IIFE agar selalu tersedia segera setelah config.js di-parse.
+   Panggil waitForSupabase(fn) dari halaman mana pun — fn dieksekusi setelah
+   window._supabase siap, atau langsung jika sudah siap. */
+window.waitForSupabase = function(cb) {
+  if (window._supabase) { cb(); return; }
+  window.__FAWZ_SB_QUEUE__ = window.__FAWZ_SB_QUEUE__ || [];
+  window.__FAWZ_SB_QUEUE__.push(cb);
+};
+
 /* ── SUPABASE CLIENT ──
-   Inject SDK lalu init singleton window._supabase.
-   config.js di-load sebelum SDK, jadi kita inject SDK di sini. */
+   Inject SDK lalu init singleton window._supabase. */
 (function() {
   if (window._supabase) return;
 
-  const cfg = window.__FAWZ_CONFIG__;
+  var cfg = window.__FAWZ_CONFIG__;
 
   function _init() {
     if (window._supabase) return;
@@ -25,30 +34,23 @@ window.__FAWZ_CONFIG__ = {
     try {
       window._supabase = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
       console.log('[Fawz] Supabase client ready →', cfg.supabaseUrl);
-      // Jalankan semua callback yang menunggu
+      // Flush queue
       var cbs = window.__FAWZ_SB_QUEUE__ || [];
       window.__FAWZ_SB_QUEUE__ = [];
-      cbs.forEach(function(fn) { try { fn(); } catch(e) {} });
+      cbs.forEach(function(fn) { try { fn(); } catch(e) { console.warn('[Fawz] waitForSupabase callback error:', e); } });
     } catch(e) {
       window.__FAWZ_SB_INIT__ = false;
       console.warn('[Fawz] Supabase init gagal:', e);
     }
   }
 
-  // Expose helper: waitForSupabase(callback) — panggil callback setelah _supabase siap
-  window.waitForSupabase = function(cb) {
-    if (window._supabase) { cb(); return; }
-    window.__FAWZ_SB_QUEUE__ = window.__FAWZ_SB_QUEUE__ || [];
-    window.__FAWZ_SB_QUEUE__.push(cb);
-  };
-
-  // Kalau SDK sudah ada (halaman load SDK sebelum config.js)
+  // SDK sudah ada (halaman inject SDK sebelum config.js)
   if (window.supabase && window.supabase.createClient) {
     _init();
     return;
   }
 
-  // Inject SDK lalu init
+  // Inject SDK, lalu init
   var s = document.createElement('script');
   s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
   s.onload = _init;
