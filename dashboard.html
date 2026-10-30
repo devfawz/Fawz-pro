@@ -101,17 +101,16 @@
       if (el) el.textContent = '0';
 
       // Tunggu Supabase SDK siap sebelum load data
-      waitForSupabase(() => {
+      // Fallback jika config.js lama tidak punya waitForSupabase
+      function _runWhenReady(fn) {
+        if (typeof waitForSupabase === 'function') { waitForSupabase(fn); return; }
+        let _t = 0;
+        (function _p(){ if (window._supabase){ fn(); return; } if(_t++>100){return;} setTimeout(_p,100); })();
+      }
+      _runWhenReady(() => {
         loadCustomerCount(role);
-
-        if (role !== 'sales') {
-          loadObligasiCount();
-        }
-
-        // Load summary bar untuk semua role
+        if (role !== 'sales') loadObligasiCount();
         loadSummaryBar(role);
-
-        // Load birthday widget
         loadBirthdayWidget(role);
       });
     });
