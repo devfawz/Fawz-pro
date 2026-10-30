@@ -29,7 +29,12 @@
     }
     ensureSupabase();
     window.addEventListener('DOMContentLoaded', () => {
-      waitForSupabase(() => loadAll());
+      if (typeof waitForSupabase === 'function') {
+        waitForSupabase(() => loadAll());
+      } else {
+        let _t = 0;
+        (function _p(){ if (window._supabase){ loadAll(); return; } if(_t++>100){return;} setTimeout(_p,100); })();
+      }
     });
   </script>
 

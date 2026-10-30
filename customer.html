@@ -13,7 +13,19 @@
       const _raw = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
       if (_raw) { try { window._curUser = JSON.parse(_raw); } catch(e) {} }
       // Tunggu Supabase SDK siap sebelum load data
-      waitForSupabase(() => loadCustomers());
+      // Fallback: jika config.js versi lama tidak punya waitForSupabase
+      if (typeof waitForSupabase === 'function') {
+        waitForSupabase(() => loadCustomers());
+      } else {
+        // Polling fallback
+        let _tries = 0;
+        function _poll() {
+          if (window._supabase) { loadCustomers(); return; }
+          if (_tries++ > 100) { console.error('Supabase tidak siap'); return; }
+          setTimeout(_poll, 100);
+        }
+        _poll();
+      }
     });
   </script>
 
