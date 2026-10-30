@@ -1525,13 +1525,22 @@
           stp_ksei_sub_account_no: r.stpKSEISubAccountNo || null,
           stp_kpei_sub_account_no: r.stpKPEISubAccountNo || null,
           sales_person_id_legacy: r.salesPersonID       || null,
-          sales_pic:             r.salesPersonName      || null,
-          sales_id:              salesId,
+          sales_person_name:     r.salesPersonName      || null,
           office_id:             r.officeID             || null,
           office_name:           r.officeName           || null,
-          client_status:         r.clientStatus         || 'Aktif',
+          department_id:         r.departmentID         || null,
+          client_status:         r.clientStatus         || 'Open',
+          client_status_description: r.clientStatusDescription || null,
           closed_date:           parseDateField(r.closedDate || ''),
           active_date:           parseDateField(r.activeDate || ''),
+          created_date:          parseDateField(r.createdDate || ''),
+          // Sekuritas langsung di tabel customers (1 customer = 1 sekuritas)
+          sekuritas_name:        r.bankAccountID        || null,
+          rdn_bank_name:         r.savingsBankName      || null,
+          rdn_account_no:        r.savingsID            || r.bankAccountNo || null,
+          personal_bank_name:    r.bankAccountID        || null,
+          personal_account_no:   r.bankAccountNo        || null,
+          personal_account_name: r.bankAccountName      || null,
         };
 
         // Upsert berdasarkan client_id jika ada, insert baru jika tidak
@@ -1555,24 +1564,6 @@
           const { data: inserted, error } = await window._supabase.from('customers').insert(row).select('id').single();
           if (error) throw error;
           customerId = inserted.id;
-        }
-
-        // Insert customer_securities jika ada data RDN
-        if (customerId && (r.bankAccountNo || r.kseiSingleID || r.savingsBankName)) {
-          const secRow = {
-            customer_id:          customerId,
-            sekuritas_name:       'Maybank Sekuritas',
-            rdn_bank_name:        r.savingsBankName  || r.bankAccountID || null,
-            rdn_bank_id:          r.savingsBankID    || null,
-            rdn_account_no:       r.bankAccountNo    || r.savingsID     || null,
-            personal_bank_name:   r.bankAccountID    || null,
-            personal_account_no:  r.bankAccountNo    || null,
-            personal_account_name: r.bankAccountName || null,
-            sort_order:           0,
-          };
-          // Hapus existing lalu insert baru
-          await window._supabase.from('customer_securities').delete().eq('customer_id', customerId);
-          await window._supabase.from('customer_securities').insert(secRow);
         }
 
         sukses++;
