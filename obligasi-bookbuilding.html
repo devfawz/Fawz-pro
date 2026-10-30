@@ -1282,24 +1282,22 @@
     }
   }
 
-  // Ambil semua customer aktif dengan pagination (lewati limit default 1000)
+  // Ambil semua customer aktif dari Supabase
   async function fetchAllActiveCustomers() {
-    const PAGE = 500; // cap per_page di customers.php
-    let all = [], page = 1;
-    while (true) {
-      try {
-        const res  = await window._api.get('customers.php', { status: 'Aktif', page, per_page: PAGE });
-        const rows = res.data || [];
-        all = all.concat(rows);
-        const total = res.total || 0;
-        if (rows.length < PAGE || all.length >= total) break;
-        page++;
-      } catch(e) {
-        console.warn('[fetchAllActiveCustomers]', e.message || e);
-        break;
-      }
+    if (!window._supabase) { return []; }
+    try {
+      const { data, error } = await window._supabase
+        .from('customers')
+        .select('client_id, client_name, sales_person_name, referral_agents, securities(*)')
+        .eq('client_status', 'Aktif')
+        .order('client_name', { ascending: true })
+        .limit(5000);
+      if (error) throw error;
+      return data || [];
+    } catch(e) {
+      console.warn('[fetchAllActiveCustomers]', e.message || e);
+      return [];
     }
-    return all;
   }
 
   // ── Searchable client dropdown ──

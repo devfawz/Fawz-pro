@@ -474,6 +474,9 @@
       </div>
     </div>
     <input type="file" id="csvFileInput" accept=".csv" onchange="handleCSVFile(event)"/>
+    <div style="margin-top:12px;padding:12px 16px;background:#fff8ec;border:1.5px solid #ffd43b;border-radius:10px;font-size:0.85rem;color:#7a5c00;">
+      ⚠️ Import CSV tidak tersedia sementara ini.
+    </div>
     <div id="csvPreviewWrap" style="display:none; margin-top:14px;">
       <div style="font-size:0.82rem; color:var(--gray); margin-bottom:8px;" id="csvPreviewInfo"></div>
       <div class="csv-preview" id="csvPreview"></div>
@@ -481,7 +484,7 @@
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="downloadTemplate()">⬇️ Download Template</button>
       <button class="btn btn-outline" onclick="document.getElementById('uploadModal').classList.remove('open')">Batal</button>
-      <button class="btn btn-primary" id="uploadSaveBtn" onclick="importCSV()" disabled>Import Data</button>
+      <button class="btn btn-primary" id="uploadSaveBtn" onclick="importCSV()" disabled>Import Data (Tidak Tersedia)</button>
     </div>
   </div>
 </div>
@@ -599,6 +602,7 @@
       }
     }
 
+    if (!window._supabase) return;
     for (const c of toUpdate) {
       const base = getClientIdBase(c.clientID);
       let newId;
@@ -611,7 +615,11 @@
       }
       c.fawzId = newId;
       try {
-        await window._api.put('customers.php', { fawz_id: newId }, { id: c.id });
+        const { error } = await window._supabase
+          .from('customers')
+          .update({ fawz_id: newId })
+          .eq('id', c.id);
+        if (error) console.warn('Gagal simpan Fawz ID untuk', c.id, error);
       } catch (e) {
         console.warn('Gagal simpan Fawz ID untuk', c.id, e);
       }
@@ -620,15 +628,23 @@
   }
 
   async function loadCustomers() {
+    if (!window._supabase) { showToast('Supabase belum siap', 'error'); return; }
     try {
       const cu = window._curUser || JSON.parse(sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember') || '{}');
 
-      // Build query params; API handles role-based filtering server-side.
-      // Pass sales name so PHP can filter when role=sales (except Petik Profit).
-      const params = { per_page: 99999 };
+      let query = window._supabase
+        .from('customers')
+        .select('*, securities(*)')
+        .order('created_at', { ascending: false });
 
-      const res = await window._api.get('customers.php', params);
-      allCustomers = (res.data || []).map(mapCustomerRow);
+      // Role-based filter: sales hanya bisa lihat data miliknya
+      if (cu.role === 'sales') {
+        query = query.eq('sales_id', cu.id);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      allCustomers = (data || []).map(mapCustomerRow);
 
       applyFilters(); updateStats(); populateFilters();
       showToast('Data berhasil dimuat', 'success');
@@ -643,6 +659,7 @@
   }
 
   async function saveCustomer() {
+    if (!window._supabase) { showToast('Supabase belum siap', 'error'); return; }
     const docId = document.getElementById('editDocId').value;
     const data = getFormData();
     if (!data.clientName && !data.client_name) { showToast('Nama Lengkap wajib diisi!', 'error'); return; }
@@ -676,7 +693,20 @@
         client_status_description: data.clientStatusDescription || null,
         active_date: parseDateField(data.activeDate || ''),
         closed_date: parseDateField(data.closedDate || ''),
-        securities: (data.securities || []).map((s, i) => ({
+      };
+
+      if (docId) {
+        const { data: updated, error } = await window._supabase
+          .from('customers')
+          .update(row)
+          .eq('id', docId)
+          .select()
+          .single();
+        if (error) throw error;
+
+        // Upsert securities
+        const secRows = (data.securities || []).map((s, i) => ({
+          customer_id: docId,
           sekuritas_name:        s.sekuritasName        || 'Maybank Sekuritas',
           rdn_bank_name:         s.rdnBankName          || null,
           rdn_account_no:        s.rdnAccountNo         || null,
@@ -684,18 +714,45 @@
           personal_account_no:   s.personalAccountNo    || null,
           personal_account_name: s.personalAccountName  || null,
           sort_order:            i,
-        })),
-      };
+        }));
+        await window._supabase.from('securities').delete().eq('customer_id', docId);
+        if (secRows.length) await window._supabase.from('securities').insert(secRows);
 
-      let res;
-      if (docId) {
-        res = await window._api.put('customers.php', row, { id: docId });
+        const { data: fresh } = await window._supabase
+          .from('customers')
+          .select('*, securities(*)')
+          .eq('id', docId)
+          .single();
         const idx = allCustomers.findIndex(c => c.id == docId);
-        if (idx !== -1) allCustomers[idx] = mapCustomerRow({ id: docId, ...res.data });
+        if (idx !== -1) allCustomers[idx] = mapCustomerRow(fresh || { id: docId, ...updated });
         showToast('Data berhasil diperbarui', 'success');
       } else {
-        res = await window._api.post('customers.php', row);
-        allCustomers.unshift(mapCustomerRow(res.data));
+        const { data: inserted, error } = await window._supabase
+          .from('customers')
+          .insert(row)
+          .select()
+          .single();
+        if (error) throw error;
+
+        // Insert securities
+        const secRows = (data.securities || []).map((s, i) => ({
+          customer_id: inserted.id,
+          sekuritas_name:        s.sekuritasName        || 'Maybank Sekuritas',
+          rdn_bank_name:         s.rdnBankName          || null,
+          rdn_account_no:        s.rdnAccountNo         || null,
+          personal_bank_name:    s.personalBankName     || null,
+          personal_account_no:   s.personalAccountNo    || null,
+          personal_account_name: s.personalAccountName  || null,
+          sort_order:            i,
+        }));
+        if (secRows.length) await window._supabase.from('securities').insert(secRows);
+
+        const { data: fresh } = await window._supabase
+          .from('customers')
+          .select('*, securities(*)')
+          .eq('id', inserted.id)
+          .single();
+        allCustomers.unshift(mapCustomerRow(fresh || inserted));
         showToast('Customer berhasil ditambahkan', 'success');
       }
 
@@ -706,9 +763,14 @@
   }
 
   async function deleteCustomer(docId, name) {
+    if (!window._supabase) { showToast('Supabase belum siap', 'error'); return; }
     if (!confirm(`Hapus customer "${name}"? Tindakan ini tidak dapat dibatalkan.`)) return;
     try {
-      await window._api.delete('customers.php', { id: docId });
+      const { error } = await window._supabase
+        .from('customers')
+        .delete()
+        .eq('id', docId);
+      if (error) throw error;
       allCustomers = allCustomers.filter(c => c.id != docId);
       applyFilters(); updateStats(); populateFilters();
       showToast(`Customer "${name}" dihapus`, 'success');
@@ -1206,12 +1268,17 @@
   }
 
   async function deleteSelected() {
+    if (!window._supabase) { showToast('Supabase belum siap', 'error'); return; }
     if (selectedIds.size === 0) return;
     const count = selectedIds.size;
     if (!confirm(`Hapus ${count} nasabah yang dipilih? Tindakan ini tidak dapat dibatalkan.`)) return;
     try {
-      const ids = [...selectedIds].join(',');
-      await window._api.delete('customers.php', { ids });
+      const ids = [...selectedIds];
+      const { error } = await window._supabase
+        .from('customers')
+        .delete()
+        .in('id', ids);
+      if (error) throw error;
       allCustomers = allCustomers.filter(c => !selectedIds.has(c.id) && !selectedIds.has(String(c.id)));
       selectedIds.clear();
       applyFilters(); updateStats(); populateFilters(); updateBulkBar();
@@ -1398,96 +1465,7 @@
   }
 
   async function importCSV() {
-    if (!csvRows.length) return;
-    const btn = document.getElementById('uploadSaveBtn');
-    btn.textContent = 'Mengimport...'; btn.disabled = true;
-    try {
-      // Petakan csvRows (header broker PascalCase) ke kolom snake_case yang
-      // dikenali endpoint PHP, lalu bangun ulang CSV ternormalisasi.
-      const normalized = [];
-      for (const row of csvRows) {
-        const r = {
-          client_id:                 row.clientID || '',
-          client_name:               row.clientName || '',
-          birth_date:                parseDateField(row.cifInvestorBirthDate) || '',
-          ktp_number:                row.cifInvestorKTPNumber || '',
-          npwp:                      row.npwp || '',
-          email:                     row.email || '',
-          phone:                     row.phone || '',
-          occupation:                row.cifInvestorOccupation || '',
-          company_name:              row.cifCompanyName || '',
-          nature_of_business:        row.cifInvestorNatureOfBusiness || '',
-          position:                  row.cifInvestorPosition || '',
-          address:                   row.address || '',
-          ksei_single_id:            row.kseiSingleID || '',
-          ksei_sub_account_no:       row.kseiSubAccountNo || '',
-          kpei_sub_account_no:       row.kpeiSubAccountNo || '',
-          stp_ksei_sub_account_no:   row.stpKSEISubAccountNo || '',
-          stp_kpei_sub_account_no:   row.stpKPEISubAccountNo || '',
-          sales_person_name:         row.salesPersonName || '',
-          office_name:               row.officeName || '',
-          client_status:             row.clientStatus || 'Aktif',
-          client_status_description: row.clientStatusDescription || '',
-          active_date:               parseDateField(row.activeDate) || '',
-          closed_date:               parseDateField(row.closedDate) || '',
-          // securities dari field rekening CSV broker
-          sekuritas_name:            'Maybank',
-          rdn_bank_name:             row.savingsBankID || '',   // SavingsBankID = Bank RDN
-          rdn_account_no:            row.savingsID || '',        // SavingsID = No Rekening RDN
-          personal_bank_name:        row.bankAccountID || '',    // BankAccountID = Bank rekening pribadi
-          personal_account_no:       row.bankAccountNo || '',    // BankAccountNo = No Rekening pribadi
-          personal_account_name:     row.bankAccountName || '',  // BankAccountName = Nama di rekening
-        };
-        if (!r.client_name) continue;
-        // Jika tidak ada data rekening sama sekali, kosongkan sekuritas_name
-        // supaya PHP tidak membuat row securities kosong.
-        if (!r.rdn_account_no && !r.rdn_bank_name &&
-            !r.personal_account_no && !r.personal_bank_name && !r.personal_account_name) {
-          r.sekuritas_name = '';
-        }
-        normalized.push(r);
-      }
-
-      if (!normalized.length) {
-        showToast('Tidak ada baris valid untuk diimport', 'error');
-        return;
-      }
-
-      // Susun CSV: header + rows
-      const lines = [IMPORT_COLUMNS.join(',')];
-      for (const r of normalized) {
-        lines.push(IMPORT_COLUMNS.map(c => csvEscape(r[c])).join(','));
-      }
-      const csvBlob = new Blob([lines.join('\n')], { type: 'text/csv' });
-      const file = new File([csvBlob], 'customers_import.csv', { type: 'text/csv' });
-
-      btn.textContent = `Mengimport ${normalized.length} data...`;
-
-      // Kirim ke endpoint PHP: POST /api/customers.php?import=csv
-      const res = await window._api.upload('customers.php', file, { import: 'csv' });
-      const imported = (res.data && res.data.imported) ?? res.imported ?? 0;
-      const errors   = (res.data && res.data.errors)   ?? res.errors   ?? [];
-
-      // Reload data dari server supaya tampilan up-to-date
-      await loadCustomers();
-      applyFilters(); updateStats(); populateFilters();
-
-      if (errors.length > 0) {
-        console.warn('Import errors:', errors);
-        const errMsg = errors.slice(0, 3).join('\n');
-        if (imported === 0) {
-          alert(`❌ Import gagal:\n\n${errMsg}\n\nCek Console (F12) untuk detail lengkap.`);
-        } else {
-          showToast(`⚠️ ${imported} berhasil, ${errors.length} gagal — cek Console (F12)`, 'error');
-          document.getElementById('uploadModal').classList.remove('open');
-        }
-      } else {
-        document.getElementById('uploadModal').classList.remove('open');
-        if (imported > 0) showToast(`✅ ${imported} customer berhasil diimport`, 'success');
-        else showToast('Tidak ada data yang diimport', 'error');
-      }
-    } catch (e) { console.error(e); showToast('Gagal import: ' + e.message, 'error'); }
-    finally { btn.textContent = 'Import Data'; btn.disabled = false; }
+    showToast('Import CSV tidak tersedia sementara ini.', 'error');
   }
 
   function downloadTemplate() {
@@ -1509,21 +1487,23 @@
   }
 
   // ===== EXPORT CSV =====
+  function exportCsv(rows) {
+    if (!rows || !rows.length) { showToast('Tidak ada data untuk diekspor.', 'error'); return; }
+    const headers = Object.keys(rows[0]);
+    const csv = [headers.join(','), ...rows.map(r =>
+      headers.map(h => '"' + String(r[h] ?? '').replace(/"/g, '""') + '"').join(',')
+    )].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'customers.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function exportCSV() {
     const data = filteredCustomers.length ? filteredCustomers : allCustomers;
-    if (!data.length) { showToast('Tidak ada data untuk diexport', 'error'); return; }
-    // Build filter params to let server export the same filtered set
-    const params = {};
-    const search = document.getElementById('searchInput').value.trim();
-    const status = document.getElementById('filterStatus').value;
-    const sales  = document.getElementById('filterSales').value;
-    const office = document.getElementById('filterOffice').value;
-    if (search) params.q      = search;
-    if (status) params.status = status;
-    if (sales)  params.sales  = sales;
-    if (office) params.office = office;
-    window._api.exportCsv('customers.php', params);
-    showToast(`Export dimulai`, 'success');
+    exportCsv(data);
+    if (data.length) showToast('Export dimulai', 'success');
   }
 
   // ===== UTILS =====
