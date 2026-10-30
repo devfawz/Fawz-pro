@@ -1449,7 +1449,11 @@
     const parts = val.split('/');
     if (parts.length === 3) {
       const [d, m, y] = parts;
-      const year = y.length === 2 ? '20' + y : y;
+      // 2-digit year: <30 → 2000s, >=30 → 1900s (e.g. 85 → 1985, 07 → 2007)
+      let year = y;
+      if (y.length === 2) {
+        year = parseInt(y, 10) < 30 ? '20' + y : '19' + y;
+      }
       return `${year}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
     }
     return null;
@@ -1498,6 +1502,10 @@
           if (salesData) salesId = salesData.id;
         }
 
+        // Sanitize phone — ambil nomor pertama jika ada format ganda (misal: "08xxx.08xxx")
+        const rawPhone = (r.phone || '').trim();
+        const cleanPhone = rawPhone.includes('.') ? rawPhone.split('.')[0].trim() : rawPhone;
+
         const row = {
           client_id:             r.clientID             || null,
           client_name:           r.clientName           || null,
@@ -1505,7 +1513,7 @@
           ktp_number:            r.cifInvestorKTPNumber || null,
           npwp:                  r.npwp                 || null,
           email:                 r.email                || null,
-          phone:                 r.phone                || null,
+          phone:                 cleanPhone             || null,
           occupation:            r.cifInvestorOccupation || null,
           company_name:          r.cifCompanyName       || null,
           nature_of_business:    r.cifInvestorNatureOfBusiness || null,
@@ -1570,8 +1578,9 @@
         sukses++;
       } catch (e) {
         gagal++;
-        errors.push(r.clientName || r.clientID || 'row');
-        console.warn('Import gagal untuk row:', r, e);
+        const label = r.clientName || r.clientID || 'row';
+        errors.push(label);
+        console.warn(`Import gagal [${label}]:`, e?.message || e);
       }
     }
 
@@ -1579,11 +1588,14 @@
     btn.disabled = false;
 
     if (sukses > 0) {
-      showToast(`✅ ${sukses} data berhasil diimport${gagal > 0 ? `, ${gagal} gagal` : ''}`, sukses > 0 ? 'success' : 'error');
+      const msg = gagal > 0
+        ? `✅ ${sukses} berhasil, ❌ ${gagal} gagal: ${errors.join(', ')}`
+        : `✅ ${sukses} data berhasil diimport`;
+      showToast(msg, 'success');
       document.getElementById('uploadModal').classList.remove('open');
       waitForSupabase ? waitForSupabase(() => loadCustomers()) : loadCustomers();
     } else {
-      showToast(`❌ Semua ${gagal} data gagal diimport`, 'error');
+      showToast(`❌ Semua ${gagal} data gagal: ${errors.slice(0,3).join(', ')}${errors.length>3?'...':''}. Cek console untuk detail.`, 'error');
     }
   }
 
