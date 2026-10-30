@@ -100,17 +100,20 @@
       const el = document.getElementById('sumCustomerAktif');
       if (el) el.textContent = '0';
 
-      loadCustomerCount(role);
+      // Tunggu Supabase SDK siap sebelum load data
+      waitForSupabase(() => {
+        loadCustomerCount(role);
 
-      if (role !== 'sales') {
-        loadObligasiCount();
-      }
+        if (role !== 'sales') {
+          loadObligasiCount();
+        }
 
-      // Load summary bar untuk semua role
-      loadSummaryBar(role);
+        // Load summary bar untuk semua role
+        loadSummaryBar(role);
 
-      // Load birthday widget
-      loadBirthdayWidget(role);
+        // Load birthday widget
+        loadBirthdayWidget(role);
+      });
     });
 
     async function loadCustomerCount(role) {

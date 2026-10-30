@@ -12,7 +12,8 @@
       // Set _curUser dari session sebelum load data
       const _raw = sessionStorage.getItem('fawz_user') || localStorage.getItem('fawz_user_remember');
       if (_raw) { try { window._curUser = JSON.parse(_raw); } catch(e) {} }
-      loadCustomers();
+      // Tunggu Supabase SDK siap sebelum load data
+      waitForSupabase(() => loadCustomers());
     });
   </script>
 

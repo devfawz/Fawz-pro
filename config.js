@@ -25,11 +25,22 @@ window.__FAWZ_CONFIG__ = {
     try {
       window._supabase = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
       console.log('[Fawz] Supabase client ready →', cfg.supabaseUrl);
+      // Jalankan semua callback yang menunggu
+      var cbs = window.__FAWZ_SB_QUEUE__ || [];
+      window.__FAWZ_SB_QUEUE__ = [];
+      cbs.forEach(function(fn) { try { fn(); } catch(e) {} });
     } catch(e) {
       window.__FAWZ_SB_INIT__ = false;
       console.warn('[Fawz] Supabase init gagal:', e);
     }
   }
+
+  // Expose helper: waitForSupabase(callback) — panggil callback setelah _supabase siap
+  window.waitForSupabase = function(cb) {
+    if (window._supabase) { cb(); return; }
+    window.__FAWZ_SB_QUEUE__ = window.__FAWZ_SB_QUEUE__ || [];
+    window.__FAWZ_SB_QUEUE__.push(cb);
+  };
 
   // Kalau SDK sudah ada (halaman load SDK sebelum config.js)
   if (window.supabase && window.supabase.createClient) {

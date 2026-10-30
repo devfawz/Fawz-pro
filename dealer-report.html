@@ -994,7 +994,7 @@ let clients = [], orders = [], dividends = [], importBuffer = [];
 /* ===== INIT ===== */
 (function() {
   tickClock(); setInterval(tickClock, 1000); setToday(); dvRenderHistory();
-  waitForDb(loadAll);
+  waitForSupabase(loadAll);
 })();
 
 async function loadAll() {
